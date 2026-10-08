@@ -1,0 +1,64 @@
+{
+  "name": "@szewtwin/cesium-renderer",
+  "version": "5.2.0-dev.26",
+  "description": "Alternative CesiumJS-based renderer for szewTwin.js",
+  "main": "lib/cjs/cesium-renderer.js",
+  "module": "lib/esm/cesium-renderer.js",
+  "typings": "lib/cjs/cesium-renderer",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "internal-tools build-cjs",
+    "build:esm": "tsc 1>&2 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "cover": "npm -s test",
+    "docs": "",
+    "extract-api": "betools extract-api --entry=cesium-renderer",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-fix": "eslint --fix -f visualstudio \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "vitest --run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "extensions/cesium-renderer"
+  },
+  "keywords": [
+    "Szewec",
+    "BIM",
+    "iVault",
+    "Cesium"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "peerDependencies": {
+    "@cesium/engine": "20.0.1",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*"
+  },
+  "devDependencies": {
+    "@cesium/engine": "20.0.1",
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/node": "~20.17.0",
+    "@vitest/browser": "^3.0.6",
+    "cpx2": "^8.0.0",
+    "eslint": "^9.31.0",
+    "internal-tools": "workspace:*",
+    "playwright": "~1.56.1",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2",
+    "vitest": "^3.0.6"
+  }
+}

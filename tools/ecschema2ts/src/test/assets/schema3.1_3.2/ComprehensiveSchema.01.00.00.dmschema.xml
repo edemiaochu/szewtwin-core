@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="ComprehensiveSchema" alias="ecsc" version="01.00.00" description="Comprehensive Schema to demonstrate use of all DMSchema concepts." displayLabel="Comprehensive Schema" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+    <DMSchemaReference name="CoreCustomAttributes" version="01.00.00" alias="CoreCA"/>
+    <DMSchemaReference name="BisCore" version="01.00.00" alias="bis"/>
+    <DMSchemaReference name="Formats" version="01.00.00" alias="f"/>
+    <DMSchemaReference name="Units" version="01.00.00" alias="u"/>
+    <DMCustomAttributeClass typeName="GeneralCustomAttribute" description="Custom Attribute that can be applied to anything." appliesTo="Any"/>
+    <DMCustomAttributeClass typeName="SchemaCustomAttribute" description="Custom Attribute that can be applied to a schema." appliesTo="Schema"/>
+    <DMCustomAttributes>
+        <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+        <SchemaCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+    </DMCustomAttributes>
+    <DMEnumeration typeName="IntEnumeration" backingTypeName="int" description="Int Enumeration" displayLabel="This is a display label." isStrict="true">
+        <DMEnumerator name="IntEnumeration1" value="1" displayLabel="First"/>
+        <DMEnumerator name="IntEnumeration2" value="2" displayLabel="Second"/>
+        <DMEnumerator name="IntEnumeration3" value="3" displayLabel="Third"/>
+    </DMEnumeration>
+    <DMEnumeration typeName="StringEnumeration" backingTypeName="string" description="String Enumeration" isStrict="true">
+        <DMEnumerator name="spring" value="spring" displayLabel="FirstSeason"/>
+        <DMEnumerator name="summer" value="summer" displayLabel="SecondSeason"/>
+        <DMEnumerator name="fall" value="fall" displayLabel="ThirdSeason"/>
+        <DMEnumerator name="winter" value="winter" displayLabel="FourthSeason"/>
+    </DMEnumeration>
+    <DMEntityClass typeName="AbstractEntityClass" description="Abstract class, cannot be instantiated" modifier="Abstract">
+        <DMProperty propertyName="AbstractClassProperty1" typeName="dateTime"/>
+        <DMNavigationProperty propertyName="FromAbstractToNormalClass" relationshipName="NormalReferAbstractForward" direction="backward"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="AbstractDerivedAbstract" description="An abstract class derived from an abstract class" modifier="Abstract">
+        <BaseClass>AbstractEntityClass</BaseClass>
+    </DMEntityClass>
+    <DMEntityClass typeName="MixinClass" description="A Mixin is designed to avoid issues with multiple inheritance">
+        <DMCustomAttributes>
+            <IsMixin xmlns="CoreCustomAttributes.01.00.00">
+                <AppliesToEntityClass>BaseEntity</AppliesToEntityClass>
+            </IsMixin>
+        </DMCustomAttributes>
+        <DMProperty propertyName="MixinStringPrimitive" typeName="string"/>
+        <DMProperty propertyName="MixinBinaryPrimitive" typeName="binary" readOnly="true"/>
+        <DMProperty propertyName="MixinDateTimePrimitive" typeName="dateTime" readOnly="true"/>
+        <DMProperty propertyName="MixinDoublePrimitive" typeName="double"/>
+        <DMProperty propertyName="MixinIGeometryPrimitive" typeName="Szewec.Geometry.Common.IGeometry"/>
+        <DMProperty propertyName="MixinIntPrimitive" typeName="int"/>
+        <DMProperty propertyName="MixinLongPrimitive" typeName="long"/>
+        <DMProperty propertyName="MixinPoint2dPrimitive" typeName="point2d"/>
+        <DMProperty propertyName="MixinPoint3dPrimitive" typeName="point3d"/>
+        <DMProperty propertyName="MixinIntEnumerationPrimitive" typeName="IntEnumeration"/>
+        <DMProperty propertyName="MixinStringEnumerationPrimitive" typeName="StringEnumeration"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="BaseEntity" description="Base Entity Description" displayLabel="Base Entity" modifier="Abstract">
+        <BaseClass>MixinClass</BaseClass>
+        <DMProperty propertyName="InheritedProperty" typeName="string"/>
+    </DMEntityClass>
+    <DMCustomAttributeClass typeName="CustomStructClassAttribute" description="Custom Attribute that can be applied to an DMStructClass." appliesTo="StructClass"/>
+    <DMCustomAttributeClass typeName="CustomAnyClassAttribute" description="Custom Attribute that can be applied to relationshipConstraint." appliesTo="AnyClass"/>
+    <DMStructClass typeName="Struct" displayLabel="Struct Class">
+        <DMCustomAttributes>
+            <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            <CustomStructClassAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            <CustomAnyClassAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+        </DMCustomAttributes>
+        <DMProperty propertyName="StructStringPrimitive" typeName="string"/>
+        <DMProperty propertyName="StructBinaryPrimitive" typeName="binary" readOnly="true"/>
+        <DMProperty propertyName="StructDateTimePrimitive" typeName="dateTime" readOnly="true"/>
+        <DMProperty propertyName="StructDoublePrimitive" typeName="double"/>
+        <DMProperty propertyName="StructIGeometryPrimitive" typeName="Szewec.Geometry.Common.IGeometry"/>
+    </DMStructClass>
+    <DMStructClass typeName="DerivedStruct" displayLabel="A Struct derived from a Struct">
+        <BaseClass>Struct</BaseClass>
+    </DMStructClass>
+    <DMCustomAttributeClass typeName="CustomEntityClassAttribute" description="Custom Attribute that can be applied to an DMEntityClass." appliesTo="EntityClass">
+        <DMProperty propertyName="EntityClassStringPrimitive" typeName="string"/>
+        <DMProperty propertyName="EntityClassBinaryPrimitive" typeName="binary" readOnly="true"/>
+        <DMProperty propertyName="EntityClassDateTimePrimitive" typeName="dateTime" readOnly="true"/>
+        <DMProperty propertyName="EntityClassDoublePrimitive" typeName="double"/>
+        <DMProperty propertyName="EntityClassIGeometryPrimitive" typeName="Szewec.Geometry.Common.IGeometry"/>
+        <DMProperty propertyName="EntityClassIntPrimitive" typeName="int"/>
+        <DMProperty propertyName="EntityClassLongPrimitive" typeName="long"/>
+        <DMProperty propertyName="EntityClassPoint2dPrimitive" typeName="point2d"/>
+        <DMProperty propertyName="EntityClassPoint3dPrimitive" typeName="point3d"/>
+        <DMProperty propertyName="EntityClassIntEnumerationPrimitive" typeName="IntEnumeration"/>
+        <DMProperty propertyName="EntityClassStringEnumerationPrimitive" typeName="StringEnumeration"/>
+        <DMStructProperty propertyName="CAStructProperty" typeName="DerivedStruct"/>
+        <DMArrayProperty propertyName="CAPrimitiveArrayProperty" typeName="string" minOccurs="0" maxOccurs="unbounded"/>
+        <DMStructArrayProperty propertyName="CAStructArrayProperty" typeName="Struct" minOccurs="0" maxOccurs="unbounded"/>
+    </DMCustomAttributeClass>
+    <DMEntityClass typeName="NormalEntityClass" description="Normal class with no modifier">
+        <DMCustomAttributes>
+            <CustomEntityClassAttribute xmlns="ComprehensiveSchema.01.00.00">
+                <CAStructProperty/>
+            </CustomEntityClassAttribute>
+            <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+        </DMCustomAttributes>
+        <DMProperty propertyName="Property1" typeName="int"/>
+    </DMEntityClass>
+    <DMRelationshipClass typeName="BaseEntityReferNormal" modifier="Abstract" strength="referencing">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="true">
+            <Class class="BaseEntity"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referred to by" polymorphic="true">
+            <Class class="NormalEntityClass"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMCustomAttributeClass typeName="ClassCustomAttribute" description="Custom Attribute that can only be applied to classes." appliesTo="AnyClass">
+        <DMProperty propertyName="Primitive" typeName="string"/>
+    </DMCustomAttributeClass>
+    <DMCustomAttributeClass typeName="CustomAnyPropertyAttribute" description="Custom Attribute that can be applied to any of the property types." appliesTo="AnyProperty"/>
+    <DMCustomAttributeClass typeName="CustomArrayPropertyAttribute" description="Custom Attribute that can be applied to an DMArrayProperty." appliesTo="ArrayProperty"/>
+    <DMCustomAttributeClass typeName="CustomCustomAttributeClassAttribute" description="Custom Attribute that can be applied to an DMCustomAttributeClass." appliesTo="CustomAttributeClass"/>
+    <DMCustomAttributeClass typeName="CustomNavigationPropertyAttribute" description="Custom Attribute that can be applied to an DMNavigationProperty." appliesTo="NavigationProperty"/>
+    <DMCustomAttributeClass typeName="CustomPrimitivePropertyAttribute" description="Custom Attribute that can be applied to an DMProperty." appliesTo="PrimitiveProperty"/>
+    <DMCustomAttributeClass typeName="CustomRelationshipClassAttribute" description="Custom Attribute that can be applied to an DMRelationshipClass." appliesTo="RelationshipClass"/>
+    <DMCustomAttributeClass typeName="CustomRelationshipConstraintAttribute" description="Custom Attribute that can be applied to relationshipConstraint." appliesTo="AnyRelationshipConstraint"/>
+    <DMCustomAttributeClass typeName="CustomRelationshipConstraintAttributeSecond" description="Custom Attribute that can be applied to relationshipConstraint." appliesTo="AnyRelationshipConstraint"/>
+    <DMCustomAttributeClass typeName="CustomStructArrayPropertyAttribute" description="Custom Attribute that can be applied to an DMStructArrayProperty." appliesTo="StructArrayProperty"/>
+    <DMCustomAttributeClass typeName="CustomStructPropertyAttribute" description="Custom Attribute that can be applied to an DMStructProperty." appliesTo="StructProperty"/>
+    <DMEntityClass typeName="DerivedAbstract" description="A class derived from an abstract class">
+        <BaseClass>AbstractEntityClass</BaseClass>
+    </DMEntityClass>
+    <DMEntityClass typeName="DerivedAbstractSecond" description="A class derived from an abstract class">
+        <BaseClass>AbstractEntityClass</BaseClass>
+    </DMEntityClass>
+    <DMEntityClass typeName="DerivedMixin" description="A Mixin class derived from a Mixin class">
+        <BaseClass>MixinClass</BaseClass>
+        <DMCustomAttributes>
+            <IsMixin xmlns="CoreCustomAttributes.01.00.00">
+                <AppliesToEntityClass>TestEntity</AppliesToEntityClass>
+            </IsMixin>
+        </DMCustomAttributes>
+        <DMProperty propertyName="DerivedMixinStringPrimitive" typeName="string"/>
+        <DMProperty propertyName="DerivedMixinBinaryPrimitive" typeName="binary" readOnly="true"/>
+        <DMProperty propertyName="DerivedMixinDateTimePrimitive" typeName="dateTime" readOnly="true"/>
+        <DMProperty propertyName="DerivedMixinDoublePrimitive" typeName="double"/>
+        <DMProperty propertyName="DerivedMixinIGeometryPrimitive" typeName="Szewec.Geometry.Common.IGeometry"/>
+        <DMProperty propertyName="DerivedMixinIntPrimitive" typeName="int"/>
+        <DMProperty propertyName="DerivedMixinLongPrimitive" typeName="long"/>
+        <DMProperty propertyName="DerivedMixinPoint2dPrimitive" typeName="point2d"/>
+        <DMProperty propertyName="DerivedMixinPoint3dPrimitive" typeName="point3d"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="DerivedNormal" description="A class derived from a normal class">
+        <BaseClass>NormalEntityClass</BaseClass>
+        <DMProperty propertyName="DerivedProperty1" typeName="string"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="DerivedNormalSecond" description="A class derived from a normal class">
+        <BaseClass>NormalEntityClass</BaseClass>
+        <DMProperty propertyName="DerivedProperty2" typeName="long"/>
+    </DMEntityClass>
+    <DMRelationshipClass typeName="NormalReferMixinForward" modifier="Abstract" strength="referencing">
+        <Source multiplicity="(0..*)" roleLabel="references" polymorphic="true">
+            <Class class="NormalEntityClass"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="true" abstractConstraint="MixinClass">
+            <Class class="DerivedMixin"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMRelationshipClass typeName="DerivedRelationshipClass" modifier="Sealed" strength="referencing">
+        <BaseClass>NormalReferMixinForward</BaseClass>
+        <Source multiplicity="(1..1)" roleLabel="references" polymorphic="true">
+            <Class class="DerivedNormal"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false" abstractConstraint="MixinClass">
+            <Class class="DerivedMixin"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMEntityClass typeName="TestEntity">
+        <BaseClass>BaseEntity</BaseClass>
+        <BaseClass>DerivedMixin</BaseClass>
+        <DMProperty propertyName="InheritedProperty" typeName="string" description="A property override."/>
+    </DMEntityClass>
+    <DMRelationshipClass typeName="EntityEmbedNormalBackward" modifier="Abstract" strength="embedding" strengthDirection="backward">
+        <Source multiplicity="(0..1)" roleLabel="is embedded by" polymorphic="true">
+            <Class class="TestEntity"/>
+        </Source>
+        <Target multiplicity="(1..*)" roleLabel="embeds" polymorphic="true">
+            <DMCustomAttributes>
+                <CustomRelationshipConstraintAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomRelationshipConstraintAttributeSecond xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+            <Class class="NormalEntityClass"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMRelationshipClass typeName="EntityReferDerivedNormal" modifier="Sealed" strength="referencing">
+        <BaseClass>BaseEntityReferNormal</BaseClass>
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="true">
+            <Class class="TestEntity"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referred to by" polymorphic="true">
+            <Class class="DerivedNormal"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMRelationshipClass typeName="EntityReferEntity" modifier="Sealed" strength="referencing">
+        <DMProperty propertyName="RelationshipProperty" typeName="string"/>
+        <Source multiplicity="(0..1)" roleLabel="references" polymorphic="true">
+            <Class class="TestEntity"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="true">
+            <Class class="TestEntity"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMRelationshipClass typeName="NormalReferAbstractBackward" modifier="Abstract" strength="referencing" strengthDirection="backward">
+        <Source multiplicity="(1..*)" roleLabel="is referred to by" polymorphic="true">
+            <Class class="NormalEntityClass"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="refers to" polymorphic="false" abstractConstraint="AbstractEntityClass">
+            <Class class="AbstractEntityClass"/>
+            <Class class="AbstractDerivedAbstract"/>
+            <Class class="DerivedAbstract"/>
+            <Class class="DerivedAbstractSecond"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMEntityClass typeName="SealedDerivedNormal" description="A sealed class derived from a normal class" modifier="Sealed">
+        <BaseClass>NormalEntityClass</BaseClass>
+    </DMEntityClass>
+    <DMRelationshipClass typeName="NormalReferAbstractForward" modifier="Abstract" strength="referencing">
+        <DMCustomAttributes>
+            <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            <CustomRelationshipClassAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+        </DMCustomAttributes>
+        <Source multiplicity="(1..1)" roleLabel="refers to" polymorphic="true" abstractConstraint="NormalEntityClass">
+            <Class class="DerivedNormal"/>
+            <Class class="NormalEntityClass"/>
+            <Class class="SealedDerivedNormal"/>
+        </Source>
+        <Target multiplicity="(0..*)" roleLabel="is referred to by" polymorphic="false" abstractConstraint="AbstractEntityClass">
+            <Class class="AbstractEntityClass"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMEntityClass typeName="PropertyCollection" modifier="Sealed">
+        <DMCustomAttributes>
+            <ClassCustomAttribute xmlns="ComprehensiveSchema.01.00.00">
+                <Primitive>General Value on Class</Primitive>
+            </ClassCustomAttribute>
+            <CustomAnyClassAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+        </DMCustomAttributes>
+        <DMProperty propertyName="PropCollectionBinaryPrimitive" typeName="binary" displayLabel="Property Display Label"/>
+        <DMProperty propertyName="PropCollectionBooleanPrimitive" typeName="boolean" description="Property Description"/>
+        <DMProperty propertyName="PropCollectionDateTimePrimitive" typeName="dateTime" readOnly="true"/>
+        <DMProperty propertyName="PropCollectionDoublePrimitive" typeName="double" minimumValue="2.2999999999999998" maximumValue="9.5999999999999996"/>
+        <DMProperty propertyName="PropCollectionIGeometryPrimitive" typeName="Szewec.Geometry.Common.IGeometry"/>
+        <DMProperty propertyName="PropCollectionIntPrimitive" typeName="int" minimumValue="0" maximumValue="10000" kindOfQuantity="KindOfQuantity"/>
+        <DMProperty propertyName="PropCollectionLongPrimitive" typeName="long"/>
+        <DMProperty propertyName="PropCollectionPoint2dPrimitive" typeName="point2d"/>
+        <DMProperty propertyName="PropCollectionPoint3dPrimitive" typeName="point3d"/>
+        <DMProperty propertyName="PropCollectionStringPrimitive" typeName="string"/>
+        <DMProperty propertyName="IntEnumerationPrimitive" typeName="IntEnumeration"/>
+        <DMProperty propertyName="StringEnumerationPrimitive" typeName="StringEnumeration"/>
+        <DMProperty propertyName="PropertyWithCustomAttribute" typeName="string">
+            <DMCustomAttributes>
+                <CustomPrimitivePropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomAnyPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+        </DMProperty>
+        <DMArrayProperty propertyName="LongArray" typeName="long" minOccurs="0" maxOccurs="unbounded"/>
+        <DMArrayProperty propertyName="BinaryArray" typeName="binary" minOccurs="1" maxOccurs="unbounded"/>
+        <DMArrayProperty propertyName="BooleanArray" typeName="boolean" readOnly="true" minOccurs="10" maxOccurs="10">
+            <DMCustomAttributes>
+                <CustomArrayPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomAnyPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+        </DMArrayProperty>
+        <DMArrayProperty propertyName="DateTimeArray" typeName="dateTime" readOnly="true" minOccurs="10" maxOccurs="10"/>
+        <DMArrayProperty propertyName="DoubleArray" typeName="double" minOccurs="5" maxOccurs="5"/>
+        <DMArrayProperty propertyName="IGeometryArray" typeName="Szewec.Geometry.Common.IGeometry" minOccurs="100" maxOccurs="100"/>
+        <DMArrayProperty propertyName="IntArray" typeName="int" readOnly="true" minOccurs="0" maxOccurs="unbounded" kindOfQuantity="KindOfQuantity"/>
+        <DMArrayProperty propertyName="Point2dArray" typeName="point2d" minOccurs="3" maxOccurs="3"/>
+        <DMArrayProperty propertyName="Point3dArray" typeName="point3d" readOnly="true" minOccurs="0" maxOccurs="unbounded"/>
+        <DMArrayProperty propertyName="StringArray" typeName="string" readOnly="true" minOccurs="15" maxOccurs="15"/>
+        <DMStructProperty propertyName="Struct1" typeName="Struct">
+            <DMCustomAttributes>
+                <CustomStructPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomAnyPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+        </DMStructProperty>
+        <DMStructArrayProperty propertyName="StructArray" typeName="Struct" minOccurs="0" maxOccurs="unbounded">
+            <DMCustomAttributes>
+                <CustomStructArrayPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomAnyPropertyAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+        </DMStructArrayProperty>
+        <DMStructArrayProperty propertyName="StructArraySecond" typeName="Struct" minOccurs="100" maxOccurs="100"/>
+        <DMStructArrayProperty propertyName="StructArrayThird" typeName="Struct" minOccurs="4" maxOccurs="4"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="SealedDerivedAbstract" description="A sealed class derived from an abstract class" modifier="Sealed">
+        <BaseClass>AbstractEntityClass</BaseClass>
+    </DMEntityClass>
+    <DMEntityClass typeName="SealedEntityClass" description="Instantiable, but cannot be used as base class" modifier="Sealed">
+        <DMProperty propertyName="SealedClassProperty1" typeName="boolean"/>
+    </DMEntityClass>
+    <DMRelationshipClass typeName="SealedHoldNormalBackward" modifier="Abstract" strength="holding" strengthDirection="backward">
+        <Source multiplicity="(0..1)" roleLabel="is held by" polymorphic="false">
+            <Class class="SealedEntityClass"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="holds" polymorphic="true">
+            <DMCustomAttributes>
+                <CustomRelationshipConstraintAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomRelationshipConstraintAttributeSecond xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+            <Class class="NormalEntityClass"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMRelationshipClass typeName="SealedHoldNormalForward" modifier="Sealed" strength="holding">
+        <Source multiplicity="(1..1)" roleLabel="holds" polymorphic="true">
+            <Class class="SealedEntityClass"/>
+        </Source>
+        <Target multiplicity="(0..*)" roleLabel="is held by" polymorphic="true" abstractConstraint="NormalEntityClass">
+            <DMCustomAttributes>
+                <CustomRelationshipConstraintAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+                <CustomRelationshipConstraintAttributeSecond xmlns="ComprehensiveSchema.01.00.00"/>
+            </DMCustomAttributes>
+            <Class class="NormalEntityClass"/>
+            <Class class="DerivedNormal"/>
+            <Class class="SealedDerivedNormal"/>
+        </Target>
+    </DMRelationshipClass>
+    <DMCustomAttributeClass typeName="UsingCustomAttributeClass" description="Custom Attribute class that use an DMCustomAttributeClass" appliesTo="Any">
+        <DMCustomAttributes>
+            <GeneralCustomAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            <CustomCustomAttributeClassAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+            <CustomAnyClassAttribute xmlns="ComprehensiveSchema.01.00.00"/>
+        </DMCustomAttributes>
+    </DMCustomAttributeClass>
+    <KindOfQuantity typeName="KindOfQuantity" description="Kind of Quantity Description" displayLabel="Kind of Quantity" persistenceUnit="u:CM" relativeError="0.001" presentationUnits="f:DefaultReal[u:FT];f:DefaultReal[u:IN]"/>
+</DMSchema>

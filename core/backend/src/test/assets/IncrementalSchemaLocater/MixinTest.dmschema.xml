@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="MixinTest" alias="mt" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="BisCore" version="01.00.01" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+
+  <DMEntityClass typeName="IBaseMixin" modifier="Abstract" displayLabel="TestLabel" description="Test Description">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:PhysicalElement</AppliesToEntityClass>
+      </IsMixin>
+      <TestCustomAttribute/>
+    </DMCustomAttributes>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="ITestMixin" modifier="Abstract" displayLabel="TestLabel" description="Test Description">
+    <BaseClass>IBaseMixin</BaseClass>
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:PhysicalElement</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMEntityClass>
+
+  <DMCustomAttributeClass typeName="TestCustomAttribute" appliesTo="EntityClass" modifier="Sealed"/>
+</DMSchema>

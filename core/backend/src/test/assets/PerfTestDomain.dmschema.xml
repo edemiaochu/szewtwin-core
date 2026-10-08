@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="PerfTestDomain" alias="perfTest" version="01.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1">
+    <DMSchemaReference name="BisCore" version="01.00" alias="bis"/>
+    <!--Class Hierarchy used by PerformanceElementsCRUDTests -->
+    <DMEntityClass typeName="PerfElement">
+        <BaseClass>bis:PhysicalElement</BaseClass>
+        <DMProperty propertyName="BaseStr" typeName="string"/>
+        <DMProperty propertyName="BaseLong" typeName="long"/>
+        <DMProperty propertyName="BaseDouble" typeName="double"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="PerfElementSub1">
+        <BaseClass>PerfElement</BaseClass>
+        <DMProperty propertyName="Sub1Str" typeName="string"/>
+        <DMProperty propertyName="Sub1Long" typeName="long"/>
+        <DMProperty propertyName="Sub1Double" typeName="double"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="PerfElementSub2">
+        <BaseClass>PerfElementSub1</BaseClass>
+        <DMProperty propertyName="Sub2Str" typeName="string"/>
+        <DMProperty propertyName="Sub2Long" typeName="long"/>
+        <DMProperty propertyName="Sub2Double" typeName="double"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="PerfElementSub3">
+        <BaseClass>PerfElementSub2</BaseClass>
+        <DMProperty propertyName="Sub3Str" typeName="string"/>
+        <DMProperty propertyName="Sub3Long" typeName="long"/>
+        <DMProperty propertyName="Sub3Double" typeName="double"/>
+    </DMEntityClass>
+    <!--Class Hierarchy used by PerformanceElementsCRUDTests -->
+    <DMEntityClass typeName="PerfElement2d">
+        <BaseClass>bis:GraphicalElement2d</BaseClass>
+        <DMProperty propertyName="BaseStr" typeName="string"/>
+        <DMProperty propertyName="BaseStr2" typeName="string"/>
+        <DMProperty propertyName="BaseLong" typeName="long"/>
+        <DMProperty propertyName="BaseDouble" typeName="double"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="PerfElement2dSub1">
+        <BaseClass>PerfElement2d</BaseClass>
+        <DMProperty propertyName="Sub1Str" typeName="string"/>
+        <DMProperty propertyName="Sub1Long" typeName="long"/>
+        <DMProperty propertyName="Sub1Double" typeName="double"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="PerfElement2dSub2">
+        <BaseClass>PerfElement2dSub1</BaseClass>
+        <DMProperty propertyName="Sub2Str" typeName="string"/>
+        <DMProperty propertyName="Sub2Long" typeName="long"/>
+        <DMProperty propertyName="Sub2Double" typeName="double"/>
+    </DMEntityClass>
+    <DMEntityClass typeName="PerfElement2dSub3">
+        <BaseClass>PerfElement2dSub2</BaseClass>
+        <DMProperty propertyName="Sub3Str" typeName="string"/>
+        <DMProperty propertyName="Sub3Long" typeName="long"/>
+        <DMProperty propertyName="Sub3Double" typeName="double"/>
+    </DMEntityClass>
+</DMSchema>

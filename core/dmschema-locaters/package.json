@@ -1,0 +1,86 @@
+{
+  "name": "@szewtwin/dmschema-locaters",
+  "version": "5.9.1",
+  "description": "DM Schema file locaters",
+  "license": "MIT",
+  "main": "lib/cjs/dmschema-locaters.js",
+  "module": "lib/esm/dmschema-locaters.js",
+  "typings": "lib/cjs/dmschema-locaters",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/dmschema-locaters"
+  },
+  "scripts": {
+    "build": "npm run -s build:cjs && npm run -s build:esm && npm run -s copy:test-assets",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs",
+    "build:esm": "tsc 1>&2 --module ES2022 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "copy:test-assets": "cpx \"./src/test/assets/**/*\" ./lib/cjs/test/assets",
+    "extract-api": "betools extract-api --entry=dmschema-locaters",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "mocha",
+    "docs": "betools docs --json=../../generated-docs/core/dmschema-locaters/file.json --tsIndexFile=./dmschema-locaters.ts --onlyJson",
+    "cover": "nyc npm -s test",
+    "start": "npm run -s lint && npm run -s clean && npm run -s build && npm run -s test & npm run -s cover & npm run -s docs"
+  },
+  "keywords": [
+    "Szewec",
+    "iVault",
+    "szewTwin.js",
+    "DM"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "devDependencies": {
+    "@szewec/aec-units-schema": "^1.0.3",
+    "@szewec/architectural-physical-schema": "^1.0.3",
+    "@szewec/bis-core-schema": "^1.0.15",
+    "@szewec/bis-custom-attributes-schema": "^1.0.0",
+    "@szewec/construction-schema": "^1.0.4",
+    "@szewec/core-custom-attributes-schema": "^1.0.4",
+    "@szewec/dmdb-map-schema": "^2.0.1",
+    "@szewec/dmdb-schema-policies-schema": "^1.0.1",
+    "@szewec/formats-schema": "^1.0.0",
+    "@szewec/linear-referencing-schema": "^2.0.3",
+    "@szewec/physical-material-schema": "^1.0.2",
+    "@szewec/plant-custom-attributes-schema": "^1.0.1",
+    "@szewec/quantity-takeoffs-aspects-schema": "^1.0.1",
+    "@szewec/spatial-composition-schema": "^1.0.1",
+    "@szewec/structural-physical-schema": "^1.0.1",
+    "@szewec/units-schema": "^1.0.9",
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/dmschema-metadata": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/chai": "4.3.1",
+    "@types/chai-as-promised": "^7",
+    "@types/fs-extra": "^4.0.7",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "~20.17.0",
+    "@types/sinon": "^17.0.2",
+    "chai": "^4.3.10",
+    "chai-as-promised": "^7.1.1",
+    "cpx2": "^8.0.0",
+    "eslint": "^9.31.0",
+    "mocha": "^11.1.0",
+    "nyc": "^17.1.0",
+    "rimraf": "^6.0.1",
+    "sinon": "^17.0.2",
+    "typescript": "~5.6.2"
+  },
+  "dependencies": {
+    "glob": "^10.5.0",
+    "fs-extra": "^8.1.0",
+    "@xmldom/xmldom": "~0.8.13"
+  },
+  "peerDependencies": {
+    "@szewtwin/dmschema-metadata": "workspace:*"
+  },
+  "nyc": {
+    "extends": "./node_modules/@szewtwin/build-tools/.nycrc",
+    "sourceMap": false
+  }
+}

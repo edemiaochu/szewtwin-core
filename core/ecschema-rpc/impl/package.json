@@ -1,0 +1,57 @@
+{
+  "name": "@szewtwin/dmschema-rpcinterface-impl",
+  "version": "5.9.1",
+  "description": "Schema RPC Interface backend implementation",
+  "main": "lib/cjs/dmschema-rpc-impl.js",
+  "module": "lib/esm/dmschema-rpc-impl.js",
+  "typings": "lib/cjs/dmschema-rpc-impl",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/dmschema-rpc/impl"
+  },
+  "scripts": {
+    "build": "npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs",
+    "build:esm": "tsc 1>&2 --module ES2022 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "cover": "",
+    "docs": "",
+    "extract-api": "betools extract-api --entry=dmschema-rpc-impl",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": ""
+  },
+  "keywords": [
+    "iVault",
+    "BIS",
+    "DM",
+    "Schema"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "peerDependencies": {
+    "@szewtwin/core-backend": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "@szewtwin/dmschema-metadata": "workspace:*",
+    "@szewtwin/dmschema-rpcinterface-common": "workspace:*"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-backend": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "@szewtwin/dmschema-metadata": "workspace:*",
+    "@szewtwin/dmschema-rpcinterface-common": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "eslint": "^9.31.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2"
+  }
+}

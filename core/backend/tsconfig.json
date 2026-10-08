@@ -1,0 +1,6 @@
+{
+  "extends": "./node_modules/@szewtwin/build-tools/tsconfig-base.json",
+  "include": [
+    "./src/**/*.ts"
+  ]
+}

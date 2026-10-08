@@ -1,0 +1,1069 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+/** @packageDocumentation
+ * @module iVaults
+ */
+
+// cspell:ignore cset csets dmchanges
+
+import * as path from "node:path";
+import * as os from "node:os";
+import {
+  AccessToken, BeDuration, ChangeSetStatus, DbResult, GuidString, IVaultHubStatus, IVaultStatus, Logger, OpenMode, Optional, StopWatch
+} from "@szewtwin/core-szewec";
+import {
+  Base64EncodedString,
+  BriefcaseId, BriefcaseIdValue, BriefcaseProps, ChangesetFileProps, ChangesetIndex, ChangesetIndexOrId, ChangesetProps, ChangesetRange, ChangesetType, IVaultError, IVaultVersion, LocalBriefcaseProps,
+  LocalDirName, LocalFileName, RequestNewBriefcaseProps,
+  TxnProps,
+} from "@szewtwin/core-common";
+import { AcquireNewBriefcaseIdArg, DownloadChangesetArg, DownloadChangesetRangeArg, IVaultNameArg } from "./BackendHubAccess";
+import { BackendLoggerCategory } from "./BackendLoggerCategory";
+import { CheckpointManager, CheckpointProps, ProgressFunction } from "./CheckpointManager";
+import { BriefcaseDb, IVaultDb, TokenArg } from "./IVaultDb";
+import { IVaultHost } from "./IVaultHost";
+import { IVaultJsFs } from "./IVaultJsFs";
+import { SchemaSync } from "./SchemaSync";
+import { _hubAccess, _nativeDb, _releaseAllLocks } from "./internal/Symbols";
+import { IVaultNative } from "./internal/NativePlatform";
+import { StashManager, StashProps } from "./StashManager";
+import { ChangeInstance } from "./ChangesetReaderTypes";
+
+const loggerCategory = BackendLoggerCategory.IVaultDb;
+
+/** The argument for [[BriefcaseManager.downloadBriefcase]]
+ * @public
+*/
+export interface RequestNewBriefcaseArg extends TokenArg, RequestNewBriefcaseProps {
+  /** If present, a function called periodically during the download to indicate progress.
+   * @note return non-zero from this function to abort the download.
+   */
+  onProgress?: ProgressFunction;
+}
+
+/**
+ * Parameters for pushing changesets to iVaultHub
+ * @public
+ */
+export interface PushChangesArgs extends TokenArg {
+  /** A description of the changes. This is visible on the iVault's timeline. */
+  description: string;
+  /** if present, the locks are retained after the operation. Otherwise, *all* locks are released after the changeset is successfully pushed. */
+  retainLocks?: true;
+  /** number of times to retry pull/merge if other users are pushing at the same time. Default is 5 */
+  mergeRetryCount?: number;
+  /** delay to wait between pull/merge retry attempts. Default is 3 seconds */
+  mergeRetryDelay?: BeDuration;
+  /** the number of time to attempt to retry to push the changeset upon failure. Default is 3 */
+  pushRetryCount?: number;
+  /** The delay to wait between retry attempts on failed pushes. Default is 3 seconds. */
+  pushRetryDelay?: BeDuration;
+  /**
+   *  (unused)
+   * @deprecated in 5.1.8 - will not be removed until after 2026-10-01. Not used by BriefcaseManager. Caller should remove this flag.
+   * @internal
+   */
+  noFastForward?: true;
+}
+
+/**
+ * Specifies a specific index for pulling changes.
+ * @public
+ */
+export interface ToChangesetArgs extends TokenArg {
+  /** The last ChangesetIndex to pull. If not present, pull *all* newer changesets. */
+  toIndex?: ChangesetIndex;
+}
+
+/** Arguments for [[BriefcaseManager.pullAndApplyChangesets]]
+ * @public
+ */
+export type PullChangesArgs = ToChangesetArgs & {
+  /** If present, a function called periodically during the download to indicate progress.
+   * @note return non-zero from this function to abort the download.
+   */
+  onProgress?: ProgressFunction;
+  /**
+   *  (unused)
+   * @deprecated in 5.1.8 - will not be removed until after 2026-10-01. Not used by BriefcaseManager. Caller should remove this flag.
+   * @internal
+   */
+  noFastForward?: true;
+};
+
+/** Arguments for [[BriefcaseManager.revertTimelineChanges]]
+ * @public
+ */
+export type RevertChangesArgs = Optional<PushChangesArgs, "description"> & {
+  /** If present, a function called periodically during the download to indicate progress.
+   * @note return non-zero from this function to abort the download.
+   */
+  onProgress?: ProgressFunction;
+  /** The index of the changeset to revert to */
+  toIndex: ChangesetIndex;
+  /** If present, schema changes are skipped during the revert operation. */
+  skipSchemaChanges?: true;
+};
+
+/** Manages downloading Briefcases and downloading and uploading changesets.
+ * @public
+ */
+export class BriefcaseManager {
+  /** @internal */
+  public static readonly PULL_MERGE_RESTORE_POINT_NAME = "$pull_merge_restore_point";
+
+  /** Get the local path of the folder storing files that are associated with an ivault */
+  public static getIVaultPath(iVaultId: GuidString): LocalDirName { return path.join(this._cacheDir, iVaultId); }
+
+  /** @internal */
+  public static getChangeSetsPath(iVaultId: GuidString): LocalDirName { return path.join(this.getIVaultPath(iVaultId), "changesets"); }
+
+  /** @internal */
+  public static getChangeCachePathName(iVaultId: GuidString): LocalFileName { return path.join(this.getIVaultPath(iVaultId), iVaultId.concat(".bim.dmchanges")); }
+
+  /** @internal */
+  public static getChangedElementsPathName(iVaultId: GuidString): LocalFileName { return path.join(this.getIVaultPath(iVaultId), iVaultId.concat(".bim.elems")); }
+
+  private static _briefcaseSubDir = "briefcases";
+  /** Get the local path of the folder storing briefcases associated with the specified iVault. */
+  public static getBriefcaseBasePath(iVaultId: GuidString): LocalDirName {
+    return path.join(this.getIVaultPath(iVaultId), this._briefcaseSubDir);
+  }
+
+  /** Get the name of the local file that holds, or will hold, a local briefcase in the briefcase cache.
+   * @note The briefcase cache is a local directory established in the call to [[BriefcaseManager.initialize]].
+   * @param briefcase the iVaultId and BriefcaseId for the filename
+   * @see getIVaultPath
+   */
+  public static getFileName(briefcase: BriefcaseProps): LocalFileName {
+    return path.join(this.getBriefcaseBasePath(briefcase.iVaultId), `${briefcase.briefcaseId}.bim`);
+  }
+
+  private static setupCacheDir(cacheRootDir: LocalDirName) {
+    this._cacheDir = cacheRootDir;
+    IVaultJsFs.recursiveMkDirSync(this._cacheDir);
+  }
+
+  private static _initialized?: boolean;
+  /** Initialize BriefcaseManager
+   * @param cacheRootDir The root directory for storing a cache of downloaded briefcase files on the local computer.
+   * Briefcases are stored relative to this path in sub-folders organized by IVaultId.
+   * @note It is perfectly valid for applications to store briefcases in locations they manage, outside of `cacheRootDir`.
+   */
+  public static initialize(cacheRootDir: LocalDirName) {
+    if (this._initialized)
+      return;
+    this.setupCacheDir(cacheRootDir);
+    IVaultHost.onBeforeShutdown.addOnce(() => this.finalize());
+    this._initialized = true;
+  }
+
+  private static finalize() {
+    this._initialized = false;
+  }
+
+  /** Get a list of the local briefcase held in the briefcase cache, optionally for a single iVaultId
+   * @param iVaultId if present, only briefcases for this iVaultId are returned, otherwise all briefcases for all
+   * iVaults in the briefcase cache are returned.
+   * @note usually there should only be one briefcase per iVault.
+   */
+  public static getCachedBriefcases(iVaultId?: GuidString): LocalBriefcaseProps[] {
+    const briefcaseList: LocalBriefcaseProps[] = [];
+    const iVaultDirs = IVaultJsFs.readdirSync(this._cacheDir);
+    for (const iVaultDir of iVaultDirs) {
+      if (iVaultId && iVaultId !== iVaultDir)
+        continue;
+      const bcPath = path.join(this._cacheDir, iVaultDir, this._briefcaseSubDir);
+      try {
+        if (!IVaultJsFs.lstatSync(bcPath)?.isDirectory)
+          continue;
+      } catch {
+        continue;
+      }
+
+      const briefcases = IVaultJsFs.readdirSync(bcPath);
+      for (const briefcaseName of briefcases) {
+        if (briefcaseName.endsWith(".bim")) {
+          try {
+            const fileName = path.join(bcPath, briefcaseName);
+            const fileSize = IVaultJsFs.lstatSync(fileName)?.size ?? 0;
+            const db = IVaultDb.openBldDb({ path: fileName }, OpenMode.Readonly);
+            briefcaseList.push({ fileName, szewTwinId: db.getSZEWTwinId(), iVaultId: db.getIVaultId(), briefcaseId: db.getBriefcaseId(), changeset: db.getCurrentChangeset(), fileSize });
+            db.closeFile();
+          } catch { }
+        }
+      }
+    }
+    return briefcaseList;
+  }
+
+  private static _cacheDir: LocalDirName;
+  /** Get the root directory for the briefcase cache */
+  public static get cacheDir(): LocalDirName { return this._cacheDir; }
+
+  /** Determine whether the supplied briefcaseId is in the range of assigned BriefcaseIds issued by iVaultHub
+   * @note this does check whether the id was actually acquired by the caller.
+   */
+  public static isValidBriefcaseId(id: BriefcaseId) {
+    return id >= BriefcaseIdValue.FirstValid && id <= BriefcaseIdValue.LastValid;
+  }
+
+  /** Acquire a new briefcaseId from iVaultHub for the supplied iVaultId
+   * @note usually there should only be one briefcase per iVault per user. If a single user acquires more than one briefcaseId,
+   * it's a good idea to supply different aliases for each of them.
+   */
+  public static async acquireNewBriefcaseId(arg: AcquireNewBriefcaseIdArg): Promise<BriefcaseId> {
+    return IVaultHost[_hubAccess].acquireNewBriefcaseId(arg);
+  }
+
+  /**
+   * Download a new briefcase from iVaultHub for the supplied iVaultId.
+   *
+   * Briefcases are local files holding a copy of an iVault.
+   * Briefcases may either be specific to an individual user (so that it can be modified to create changesets), or it can be readonly so it can accept but not create changesets.
+   * Every briefcase internally holds its [[BriefcaseId]]. Writeable briefcases have a `BriefcaseId` "assigned" to them by iVaultHub. No two users will ever have the same BriefcaseId.
+   * Readonly briefcases are "unassigned" with the special value [[BriefcaseId.Unassigned]].
+   *
+   * Typically a given user will have only one briefcase on their machine for a given iVaultId. Rarely, it may be necessary to use more than one
+   * briefcase to make isolated independent sets of changes, but that is exceedingly complicated and rare.
+   *
+   * Callers of this method may supply a BriefcaseId, or if none is supplied, a new one is acquired from iVaultHub.
+   *
+   * @param arg The arguments that specify the briefcase file to be downloaded.
+   * @returns The properties of the local briefcase in a Promise that is resolved after the briefcase is fully downloaded and the briefcase file is ready for use via [BriefcaseDb.open]($backend).
+   * @note The location of the local file to hold the briefcase is arbitrary and may be any valid *local* path on your machine. If you don't supply
+   * a filename, the local briefcase cache is used by creating a file with the briefcaseId as its name in the `briefcases` folder below the folder named
+   * for the IVaultId.
+   * @note *It is invalid to edit briefcases on a shared network drive* and that is a sure way to corrupt your briefcase (see https://www.sqlite.org/howtocorrupt.html)
+   */
+  public static async downloadBriefcase(arg: RequestNewBriefcaseArg): Promise<LocalBriefcaseProps> {
+    const briefcaseId = arg.briefcaseId ?? await this.acquireNewBriefcaseId({ deviceName: `${os.hostname()}:${os.type()}:${os.arch()}`, ...arg });
+    const fileName = arg.fileName ?? this.getFileName({ ...arg, briefcaseId });
+
+    if (IVaultJsFs.existsSync(fileName))
+      throw new IVaultError(IVaultStatus.FileAlreadyExists, `Briefcase "${fileName}" already exists`);
+
+    const asOf = arg.asOf ?? IVaultVersion.latest().toJSON();
+    const changeset = await IVaultHost[_hubAccess].getChangesetFromVersion({ ...arg, version: IVaultVersion.fromJSON(asOf) });
+    const checkpoint: CheckpointProps = { ...arg, changeset };
+
+    try {
+      await CheckpointManager.downloadCheckpoint({ localFile: fileName, checkpoint, onProgress: arg.onProgress });
+    } catch (error: unknown) {
+      const errorMessage = `Failed to download briefcase to ${fileName}, errorMessage: ${(error as Error).message}`;
+      if (arg.accessToken && arg.briefcaseId === undefined) {
+        Logger.logInfo(loggerCategory, `${errorMessage}, releasing the briefcaseId...`);
+        await this.releaseBriefcase(arg.accessToken, { briefcaseId, iVaultId: arg.iVaultId });
+      }
+      if (IVaultJsFs.existsSync(fileName)) {
+        if (arg.accessToken && arg.briefcaseId === undefined)
+          Logger.logTrace(loggerCategory, `Deleting the file: ${fileName}...`);
+        else
+          Logger.logInfo(loggerCategory, `${errorMessage}, deleting the file...`);
+        try {
+          IVaultJsFs.unlinkSync(fileName);
+          Logger.logInfo(loggerCategory, `Deleted ${fileName}`);
+        } catch (deleteError: unknown) {
+          Logger.logWarning(loggerCategory, `Failed to delete ${fileName}. errorMessage: ${(deleteError as Error).message}`);
+        }
+      }
+      throw error;
+    }
+
+    const fileSize = IVaultJsFs.lstatSync(fileName)?.size ?? 0;
+    const response: LocalBriefcaseProps = {
+      fileName,
+      briefcaseId,
+      iVaultId: arg.iVaultId,
+      szewTwinId: arg.szewTwinId,
+      changeset: checkpoint.changeset,
+      fileSize,
+    };
+
+    // now open the downloaded checkpoint and reset its BriefcaseId
+    const nativeDb = new IVaultNative.platform.BldDb();
+    try {
+      nativeDb.openIVault(fileName, OpenMode.ReadWrite);
+    } catch (err: any) {
+      throw new IVaultError(err.errorNumber, `Could not open downloaded briefcase for write access: ${fileName}, err=${err.message}`);
+    }
+    try {
+      nativeDb.enableWalMode(); // local briefcases should use WAL journal mode
+      nativeDb.resetBriefcaseId(briefcaseId);
+      if (nativeDb.getCurrentChangeset().id !== checkpoint.changeset.id)
+        throw new IVaultError(IVaultStatus.InvalidId, `Downloaded briefcase has wrong changesetId: ${fileName}`);
+    } finally {
+      nativeDb.saveChanges();
+      nativeDb.closeFile();
+    }
+    return response;
+  }
+
+  /** Deletes change sets of an iVault from local disk
+   * @internal
+   */
+  public static deleteChangeSetsFromLocalDisk(iVaultId: string) {
+    const changesetsPath = BriefcaseManager.getChangeSetsPath(iVaultId);
+    BriefcaseManager.deleteFolderAndContents(changesetsPath);
+  }
+
+  /** Releases a briefcaseId from iVaultHub. After this call it is illegal to generate changesets for the released briefcaseId.
+   * @note generally, this method should not be called directly. Instead use [[deleteBriefcaseFiles]].
+   * @see deleteBriefcaseFiles
+   */
+  public static async releaseBriefcase(accessToken: AccessToken, briefcase: BriefcaseProps): Promise<void> {
+    if (this.isValidBriefcaseId(briefcase.briefcaseId))
+      return IVaultHost[_hubAccess].releaseBriefcase({ accessToken, iVaultId: briefcase.iVaultId, briefcaseId: briefcase.briefcaseId });
+  }
+
+  /**
+   * Delete and clean up a briefcase and all of its associated files. First, this method opens the supplied filename to determine its briefcaseId.
+   * Then, if a requestContext is supplied, it releases a BriefcaseId from iVaultHub. Finally it deletes the local briefcase file and
+   * associated files (that is, all files in the same directory that start with the briefcase name).
+   * @param filePath the full file name of the Briefcase to delete
+   * @param accessToken for releasing the briefcaseId
+   */
+  public static async deleteBriefcaseFiles(filePath: LocalFileName, accessToken?: AccessToken): Promise<void> {
+    try {
+      const db = IVaultDb.openBldDb({ path: filePath }, OpenMode.Readonly);
+      const briefcase: BriefcaseProps = {
+        iVaultId: db.getIVaultId(),
+        briefcaseId: db.getBriefcaseId(),
+      };
+      db.closeFile();
+
+      if (this.isValidBriefcaseId(briefcase.briefcaseId))
+        this.cleanupRebaseFolders(filePath, briefcase.briefcaseId); // cleanup rebase folders
+
+      if (accessToken) {
+        if (this.isValidBriefcaseId(briefcase.briefcaseId)) {
+          await BriefcaseManager.releaseBriefcase(accessToken, briefcase);
+        }
+      }
+    } catch { }
+
+    // first try to delete the briefcase file
+    try {
+      if (IVaultJsFs.existsSync(filePath))
+        IVaultJsFs.unlinkSync(filePath);
+    } catch (err) {
+      throw new IVaultError(IVaultStatus.BadRequest, `cannot delete briefcase file ${String(err)}`);
+    }
+
+    // next, delete all files that start with the briefcase's filePath (e.g. "a.dtw-locks", "a.dtw-journal", etc.)
+    try {
+      const dirName = path.dirname(filePath);
+      const fileName = path.basename(filePath);
+      const files = IVaultJsFs.readdirSync(dirName);
+      for (const file of files) {
+        if (file.startsWith(fileName))
+          this.deleteFile(path.join(dirName, file)); // don't throw on error
+      }
+    } catch { }
+  }
+
+  /** Deletes a file
+   *  - Does not throw any error, but logs it instead
+   *  - Returns true if the delete was successful
+   */
+  private static deleteFile(pathname: LocalFileName): boolean {
+    try {
+      IVaultJsFs.unlinkSync(pathname);
+    } catch (error) {
+      Logger.logError(loggerCategory, `Cannot delete file ${pathname}, ${String(error)}`);
+      return false;
+    }
+    return true;
+  }
+
+  /** Deletes a folder, checking if it's empty
+   *  - Does not throw any error, but logs it instead
+   *  - Returns true if the delete was successful
+   */
+  private static deleteFolderIfEmpty(folderPathname: LocalDirName): boolean {
+    try {
+      const files = IVaultJsFs.readdirSync(folderPathname);
+      if (files.length > 0)
+        return false;
+
+      IVaultJsFs.rmdirSync(folderPathname);
+    } catch {
+      Logger.logError(loggerCategory, `Cannot delete folder: ${folderPathname}`);
+      return false;
+    }
+    return true;
+  }
+
+  /** Deletes the contents of a folder, but not the folder itself
+   *  - Does not throw any errors, but logs them.
+   *  - returns true if the delete was successful.
+   */
+  private static deleteFolderContents(folderPathname: LocalDirName): boolean {
+    if (!IVaultJsFs.existsSync(folderPathname))
+      return false;
+
+    let status = true;
+    const files = IVaultJsFs.readdirSync(folderPathname);
+    for (const file of files) {
+      const curPath = path.join(folderPathname, file);
+      const locStatus = (IVaultJsFs.lstatSync(curPath)?.isDirectory) ? BriefcaseManager.deleteFolderAndContents(curPath) : BriefcaseManager.deleteFile(curPath);
+      if (!locStatus)
+        status = false;
+    }
+    return status;
+  }
+
+  /** Download all the changesets in the specified range.
+   * @beta
+   */
+  public static async downloadChangesets(arg: DownloadChangesetRangeArg): Promise<ChangesetFileProps[]> {
+    return IVaultHost[_hubAccess].downloadChangesets(arg);
+  }
+
+  /** Download a single changeset.
+   * @beta
+   */
+  public static async downloadChangeset(arg: DownloadChangesetArg): Promise<ChangesetFileProps> {
+    return IVaultHost[_hubAccess].downloadChangeset(arg);
+  }
+
+  /** Query the hub for the properties for a ChangesetIndex or ChangesetId  */
+  public static async queryChangeset(arg: { iVaultId: GuidString, changeset: ChangesetIndexOrId }): Promise<ChangesetProps> {
+    return IVaultHost[_hubAccess].queryChangeset({ ...arg, accessToken: await IVaultHost.getAccessToken() });
+  }
+
+  /** Query the hub for an array of changeset properties given a ChangesetRange */
+  public static async queryChangesets(arg: { iVaultId: GuidString, range: ChangesetRange }): Promise<ChangesetProps[]> {
+    return IVaultHost[_hubAccess].queryChangesets({ ...arg, accessToken: await IVaultHost.getAccessToken() });
+  }
+
+  /** Query the hub for the ChangesetProps of the most recent changeset */
+  public static async getLatestChangeset(arg: { iVaultId: GuidString }): Promise<ChangesetProps> {
+    return IVaultHost[_hubAccess].getLatestChangeset({ ...arg, accessToken: await IVaultHost.getAccessToken() });
+  }
+
+  /** Query the Id of an iVault by name.
+   * @param arg Identifies the iVault of interest
+   * @returns the Id of the corresponding iVault, or `undefined` if no such iVault exists.
+   */
+  public static async queryIVaultByName(arg: IVaultNameArg): Promise<GuidString | undefined> {
+    return IVaultHost[_hubAccess].queryIVaultByName(arg);
+  }
+
+  /** Deletes a folder and all it's contents.
+   *  - Does not throw any errors, but logs them.
+   *  - returns true if the delete was successful.
+   */
+  private static deleteFolderAndContents(folderPathname: LocalDirName): boolean {
+    if (!IVaultJsFs.existsSync(folderPathname))
+      return true;
+
+    let status = false;
+    status = BriefcaseManager.deleteFolderContents(folderPathname);
+    if (!status)
+      return false;
+
+    status = BriefcaseManager.deleteFolderIfEmpty(folderPathname);
+    return status;
+  }
+
+  private static async applySingleChangeset(db: IVaultDb, changesetFile: ChangesetFileProps, fastForward: boolean) {
+    if (changesetFile.changesType === ChangesetType.Schema || changesetFile.changesType === ChangesetType.SchemaSync)
+      db.clearCaches(); // for schema changesets, statement caches may become invalid. Do this *before* applying, in case db needs to be closed (open statements hold db open.)
+
+    db[_nativeDb].applyChangeset(changesetFile, fastForward);
+    db.changeset = db[_nativeDb].getCurrentChangeset();
+
+    // we're done with this changeset, delete it
+    IVaultJsFs.removeSync(changesetFile.pathname);
+  }
+
+  /** @internal */
+  public static async revertTimelineChanges(db: IVaultDb, arg: RevertChangesArgs): Promise<void> {
+    if (!db.isOpen || db[_nativeDb].isReadonly())
+      throw new IVaultError(ChangeSetStatus.ApplyError, "Briefcase must be open ReadWrite to revert timeline changes");
+
+    let currentIndex = db.changeset.index;
+    if (currentIndex === undefined)
+      currentIndex = (await IVaultHost[_hubAccess].queryChangeset({ accessToken: arg.accessToken, iVaultId: db.iVaultId, changeset: { id: db.changeset.id } })).index;
+
+    if (!arg.toIndex) {
+      throw new IVaultError(ChangeSetStatus.ApplyError, "toIndex must be specified to revert changesets");
+    }
+    if (arg.toIndex > currentIndex) {
+      throw new IVaultError(ChangeSetStatus.ApplyError, "toIndex must be less than or equal to the current index");
+    }
+    if (!db.holdsSchemaLock) {
+      throw new IVaultError(ChangeSetStatus.ApplyError, "Cannot revert timeline changesets without holding a schema lock");
+    }
+
+    // Download change sets
+    const changesets = await IVaultHost[_hubAccess].downloadChangesets({
+      accessToken: arg.accessToken,
+      iVaultId: db.iVaultId,
+      range: { first: arg.toIndex, end: currentIndex },
+      targetDir: BriefcaseManager.getChangeSetsPath(db.iVaultId),
+      progressCallback: arg.onProgress,
+    });
+
+    if (changesets.length === 0)
+      return;
+
+    changesets.reverse();
+    db.clearCaches();
+
+    const stopwatch = new StopWatch(`Reverting changes`, true);
+    Logger.logInfo(loggerCategory, `Starting reverting timeline changes from ${arg.toIndex} to ${currentIndex}`);
+
+    /**
+     * Revert timeline changes from the current index to the specified index.
+     * It does not change parent of the current changeset.
+     * All changes during revert operation are stored in a new changeset.
+     * Revert operation require schema lock as we do not acquire individual locks for each element.
+     * Optionally schema changes can be skipped (required for schema sync case).
+     */
+    db[_nativeDb].revertTimelineChanges(changesets, arg.skipSchemaChanges ?? false);
+    Logger.logInfo(loggerCategory, `Reverted timeline changes from ${arg.toIndex} to ${currentIndex} (${stopwatch.elapsedSeconds} seconds)`);
+
+    changesets.forEach((changeset) => {
+      IVaultJsFs.removeSync(changeset.pathname);
+    });
+    db.notifyChangesetApplied();
+  }
+
+  /**
+   * @internal
+   * Pulls and applies changesets from the iVaultHub to the specified IVaultDb instance.
+   *
+   * This method downloads and applies all changesets required to bring the local briefcase up to the specified changeset index.
+   * It supports both forward and reverse application of changesets, depending on the `toIndex` argument.
+   * If there are pending local transactions and a reverse operation is requested, an error is thrown.
+   * The method manages restore points for safe merging, handles local transaction reversal, applies each changeset in order,
+   * and resumes or rebases local changes as appropriate for the type of database.
+   *
+   * @param db The IVaultDb instance to which changesets will be applied. Must be open and writable.
+   * @param arg The arguments for pulling changesets, including access token, target changeset index, and optional progress callback.
+   * @throws IVaultError If the briefcase is not open in read-write mode, if there are pending transactions when reversing, or if applying a changeset fails.
+   * @returns A promise that resolves when all required changesets have been applied.
+   */
+  public static async pullAndApplyChangesets(db: IVaultDb, arg: PullChangesArgs): Promise<void> {
+    const briefcaseDb = db instanceof BriefcaseDb ? db : undefined;
+    const nativeDb = db[_nativeDb];
+
+    if (!db.isOpen || nativeDb.isReadonly()) // don't use db.isReadonly - we reopen the file writable just for this operation but db.isReadonly is still true
+      throw new IVaultError(ChangeSetStatus.ApplyError, "Briefcase must be open ReadWrite to process change sets");
+
+    let currentIndex = db.changeset.index;
+    if (currentIndex === undefined)
+      currentIndex = (await IVaultHost[_hubAccess].queryChangeset({ accessToken: arg.accessToken, iVaultId: db.iVaultId, changeset: { id: db.changeset.id } })).index;
+
+    const reverse = (arg.toIndex && arg.toIndex < currentIndex) ? true : false;
+    const isPullMerge = briefcaseDb && !reverse;
+    if (nativeDb.hasPendingTxns() && reverse) {
+      throw new IVaultError(ChangeSetStatus.ApplyError, "Cannot reverse changesets when there are pending changes");
+    }
+
+    if (isPullMerge) {
+      if (briefcaseDb.txns.rebaser.isRebasing) {
+        throw new IVaultError(IVaultStatus.BadRequest, "Cannot pull and apply changeset while rebasing");
+      }
+      if (briefcaseDb.txns.isIndirectChanges) {
+        throw new IVaultError(IVaultStatus.BadRequest, "Cannot pull and apply changeset while in an indirect change scope");
+      }
+      briefcaseDb.txns.rebaser.notifyPullMergeBegin(briefcaseDb.changeset);
+      briefcaseDb.txns.rebaser.notifyDownloadChangesetsBegin();
+    }
+
+    // Download change sets
+    const changesets = await IVaultHost[_hubAccess].downloadChangesets({
+      accessToken: arg.accessToken,
+      iVaultId: db.iVaultId,
+      range: { first: reverse ? arg.toIndex! + 1 : currentIndex + 1, end: reverse ? currentIndex : arg.toIndex }, // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      targetDir: BriefcaseManager.getChangeSetsPath(db.iVaultId),
+      progressCallback: arg.onProgress,
+    });
+
+    if (isPullMerge) {
+      briefcaseDb.txns.rebaser.notifyDownloadChangesetsEnd();
+    }
+
+    if (changesets.length === 0) {
+      if (isPullMerge) {
+        briefcaseDb.txns.rebaser.notifyPullMergeEnd(briefcaseDb.changeset);
+      }
+      return; // nothing to apply
+    }
+
+    if (reverse)
+      changesets.reverse();
+
+    if (isPullMerge && briefcaseDb.txns.hasPendingTxns && !briefcaseDb.txns.hasPendingSchemaChanges && !IVaultHost.configuration?.disableRestorePointOnPullMerge) {
+      Logger.logInfo(loggerCategory, `Creating restore point ${this.PULL_MERGE_RESTORE_POINT_NAME}`);
+      await this.createRestorePoint(briefcaseDb, this.PULL_MERGE_RESTORE_POINT_NAME);
+    }
+
+    const hasIncomingSchemaChange: boolean = changesets.some((changeset) => changeset.changesType === ChangesetType.Schema);
+    const hasLocalSchemaTxn: boolean = briefcaseDb?.checkIfSchemaTxnExists() ?? false;
+    const useSemanticRebase: boolean =
+      briefcaseDb !== undefined &&
+      IVaultHost.useSemanticRebase &&
+      (hasIncomingSchemaChange || hasLocalSchemaTxn);
+
+    if (useSemanticRebase) {
+      Logger.logInfo(loggerCategory, `Using semantic rebase (incoming schema change: ${hasIncomingSchemaChange}, local schema txn: ${hasLocalSchemaTxn})`);
+    }
+
+    if (!reverse) {
+      if (briefcaseDb) {
+        briefcaseDb.txns.rebaser.notifyReverseLocalChangesBegin();
+        const reversedTxns = nativeDb.pullMergeReverseLocalChanges(useSemanticRebase);
+        if (useSemanticRebase) {
+          nativeDb.clearDMDbCache(); // Clear the DMDb cache after reversing local changes to ensure consistency during semantic rebase with schema changes.
+        }
+        const reversedTxnProps = reversedTxns.map((txn) => briefcaseDb.txns.getTxnProps(txn)).filter((props): props is TxnProps => props !== undefined);
+        briefcaseDb.txns.rebaser.notifyReverseLocalChangesEnd(reversedTxnProps);
+        Logger.logInfo(loggerCategory, `Reversed ${reversedTxns.length} local changes`);
+      } else {
+        nativeDb.pullMergeReverseLocalChanges();
+      }
+    }
+
+    if (isPullMerge) {
+      briefcaseDb.txns.rebaser.notifyApplyIncomingChangesBegin(changesets);
+    }
+
+    // apply incoming changes
+    for (const changeset of changesets) {
+      const stopwatch = new StopWatch(`[${changeset.id}]`, true);
+      Logger.logInfo(loggerCategory, `Starting application of changeset with id ${stopwatch.description}`);
+      try {
+        await this.applySingleChangeset(db, changeset, false);
+        Logger.logInfo(loggerCategory, `Applied changeset with id ${stopwatch.description} (${stopwatch.elapsedSeconds} seconds)`);
+      } catch (err: any) {
+        if (err instanceof Error) {
+          Logger.logError(loggerCategory, `Error applying changeset with id ${stopwatch.description}: ${err.message}`);
+        }
+        db[_nativeDb].abandonChanges();
+        throw err;
+      }
+    }
+    if (isPullMerge) {
+      briefcaseDb.txns.rebaser.notifyApplyIncomingChangesEnd(changesets);
+    }
+    if (!reverse) {
+      if (briefcaseDb) {
+        if (useSemanticRebase)
+          await briefcaseDb.txns.rebaser.resumeSemantic();
+        else
+          await briefcaseDb.txns.rebaser.resume();
+      } else {
+        // Only Briefcase has change management. Following is
+        // for test related to standalone db with txn enabled.
+        nativeDb.pullMergeRebaseBegin();
+        let txnId = nativeDb.pullMergeRebaseNext();
+        while (txnId) {
+          nativeDb.pullMergeRebaseReinstateTxn();
+          nativeDb.pullMergeRebaseUpdateTxn();
+          txnId = nativeDb.pullMergeRebaseNext();
+        }
+        nativeDb.pullMergeRebaseEnd();
+        if (!nativeDb.isReadonly) {
+          nativeDb.saveChanges("Merge.");
+        }
+      }
+
+      if (briefcaseDb && this.containsRestorePoint(briefcaseDb, this.PULL_MERGE_RESTORE_POINT_NAME)) {
+        Logger.logInfo(loggerCategory, `Dropping restore point ${this.PULL_MERGE_RESTORE_POINT_NAME}`);
+        this.dropRestorePoint(briefcaseDb, this.PULL_MERGE_RESTORE_POINT_NAME);
+      }
+    }
+    // notify listeners
+    db.notifyChangesetApplied();
+  }
+
+  /**
+   * @internal
+   * Creates a restore point for the specified briefcase database.
+   *
+   * @param db - The {@link BriefcaseDb} instance for which to create the restore point.
+   * @param name - The unique name for the restore point. Must be a non-empty string.
+   * @returns A promise that resolves to the created stash object representing the restore point.
+   */
+  public static async createRestorePoint(db: BriefcaseDb, name: string): Promise<StashProps> {
+    Logger.logTrace(loggerCategory, `Creating restore point ${name}`);
+    this.dropRestorePoint(db, name);
+
+    const stash = await StashManager.stash({ db, description: this.makeRestorePointKey(name) });
+    db[_nativeDb].saveLocalValue(this.makeRestorePointKey(name), stash.id);
+    db[_nativeDb].saveChanges("Create restore point");
+    Logger.logTrace(loggerCategory, `Created restore point ${name}`, () => stash);
+    return stash;
+  }
+
+  /**
+   * @internal
+   * Drops a previously created restore point from the specified briefcase database.
+   *
+   * @param db - The {@link BriefcaseDb} instance from which to drop the restore point.
+   * @param name - The name of the restore point to be dropped. Must be a non-empty string.
+   */
+  public static dropRestorePoint(db: BriefcaseDb, name: string): void {
+    Logger.logTrace(loggerCategory, `Dropping restore point ${name}`);
+
+    const restorePointId = db[_nativeDb].queryLocalValue(this.makeRestorePointKey(name));
+    if (restorePointId) {
+      StashManager.dropStash({ db, stash: restorePointId });
+      db[_nativeDb].deleteLocalValue(this.makeRestorePointKey(name));
+      db[_nativeDb].saveChanges("Drop restore point");
+      Logger.logTrace(loggerCategory, `Dropped restore point ${name}`);
+    }
+
+  }
+
+  /**
+   * @internal
+   * Checks if a restore point with the specified name exists in the given briefcase database.
+   *
+   * @param db - The {@link BriefcaseDb} instance to search within.
+   * @param name - The name of the restore point to check for existence.
+   * @returns `true` if the restore point exists and its stash is present; otherwise, `false`.
+   */
+  public static containsRestorePoint(db: BriefcaseDb, name: string): boolean {
+    Logger.logTrace(loggerCategory, `Checking if restore point ${name} exists`);
+    const key = this.makeRestorePointKey(name);
+    const restorePointId = db[_nativeDb].queryLocalValue(key);
+    if (!restorePointId) {
+      return false;
+    }
+
+    const stash = StashManager.tryGetStash({ db, stash: restorePointId });
+    if (!stash) {
+      Logger.logTrace(loggerCategory, `Restore point ${name} does not exist. Deleting ${key}`);
+      db[_nativeDb].deleteLocalValue(key);
+      return false;
+    }
+    return true;
+  }
+
+  private static makeRestorePointKey(name: string): string {
+    if (name.length === 0) {
+      throw new Error("Invalid restore point name");
+    }
+    return `restore_point/${name}`;
+  }
+
+  /**
+   * @internal
+   * Restores the state of a briefcase database to a previously saved restore point.
+   *
+   * @param db - The {@link BriefcaseDb} instance to restore.
+   * @param name - The name of the restore point to apply.
+   */
+  public static async restorePoint(db: BriefcaseDb, name: string): Promise<void> {
+    Logger.logTrace(loggerCategory, `Restoring to restore point ${name}`);
+    const restorePointId = db[_nativeDb].queryLocalValue(this.makeRestorePointKey(name));
+    if (!restorePointId) {
+      throw new Error(`Restore point not found: ${name}`);
+    }
+
+    await StashManager.restore({ db, stash: restorePointId });
+    Logger.logTrace(loggerCategory, `Restored to restore point ${name}`);
+    this.dropRestorePoint(db, name);
+  }
+
+  /** create a changeset from the current changes, and push it to iVaultHub */
+  private static async pushChanges(db: BriefcaseDb, arg: PushChangesArgs): Promise<void> {
+    if (db.txns.rebaser.isRebasing) {
+      throw new IVaultError(IVaultStatus.BadRequest, "Cannot push changeset while rebasing");
+    }
+    if (db.txns.isIndirectChanges) {
+      throw new IVaultError(IVaultStatus.BadRequest, "Cannot push changeset while in an indirect change scope");
+    }
+
+    const changesetProps = db[_nativeDb].startCreateChangeset() as ChangesetFileProps;
+    changesetProps.briefcaseId = db.briefcaseId;
+    changesetProps.description = arg.description;
+    const fileSize = IVaultJsFs.lstatSync(changesetProps.pathname)?.size;
+    if (!fileSize) // either undefined or 0 means error
+      throw new IVaultError(IVaultStatus.NoContent, "error creating changeset");
+
+    changesetProps.size = fileSize;
+    const id = IVaultNative.platform.BldDb.computeChangesetId(changesetProps);
+    if (id !== changesetProps.id) {
+      throw new IVaultError(DbResult.BE_SQLITE_ERROR_InvalidChangeSetVersion, `Changeset id ${changesetProps.id} does not match computed id ${id}.`);
+    }
+
+    let retryCount = arg.pushRetryCount ?? 3;
+    while (true) {
+      try {
+        const accessToken = await IVaultHost.getAccessToken();
+        const index = await IVaultHost[_hubAccess].pushChangeset({ accessToken, iVaultId: db.iVaultId, changesetProps });
+        db[_nativeDb].completeCreateChangeset({ index });
+        db.changeset = db[_nativeDb].getCurrentChangeset();
+        if (!arg.retainLocks)
+          await db.locks[_releaseAllLocks]();
+
+        return;
+      } catch (err: any) {
+        const shouldRetry = () => {
+          if (retryCount-- <= 0)
+            return false;
+          switch (err.errorNumber) {
+            case IVaultHubStatus.AnotherUserPushing:
+            case IVaultHubStatus.DatabaseTemporarilyLocked:
+            case IVaultHubStatus.OperationFailed:
+              return true;
+          }
+          return false;
+        };
+
+        if (!shouldRetry()) {
+          db[_nativeDb].abandonCreateChangeset();
+          throw err;
+        }
+      } finally {
+        IVaultJsFs.removeSync(changesetProps.pathname);
+      }
+    }
+  }
+
+  /** Pull/merge (if necessary), then push all local changes as a changeset. Called by [[BriefcaseDb.pushChanges]]
+   * @internal
+   */
+  public static async pullMergePush(db: BriefcaseDb, arg: PushChangesArgs): Promise<void> {
+    let retryCount = arg.mergeRetryCount ?? 5;
+    while (true) {
+      try {
+        await BriefcaseManager.pullAndApplyChangesets(db, arg);
+        if (!db.skipSyncSchemasOnPullAndPush)
+          await SchemaSync.pull(db);
+        // pullAndApply rebase changes and might remove redundant changes in local briefcase
+        // this mean hasPendingTxns was true before but now after pullAndApply it might be false
+        if (!db[_nativeDb].hasPendingTxns())
+          return;
+
+        await BriefcaseManager.pushChanges(db, arg);
+      } catch (err: any) {
+        if (retryCount-- <= 0 || err.errorNumber !== IVaultHubStatus.PullIsRequired)
+          throw (err);
+        await (arg.mergeRetryDelay ?? BeDuration.fromSeconds(3)).wait();
+      }
+    }
+  }
+
+  // #region Semantic Rebase Interop Helper
+  private static readonly REBASING_FOLDER = ".rebasing";
+  private static readonly DM_FOLDER = "dm";
+  private static readonly SCHEMAS_FOLDER = "schemas";
+  private static readonly DATA_FOLDER = "data";
+  private static readonly DATA_FILE_NAME = "data.json";
+
+  /**
+   * Stores changed instances for semantic rebase locally in appropriate json file in a folder structure
+   * @param db The [BriefcaseDb]($backend) instance for storing the changed instances against a txn
+   * @param txnId The txn id for which we are storing the changed instances
+   * @param instancePatches The [ChangeInstance]($backend) instance patches to be stored
+   * @internal
+   */
+  public static storeChangedInstancesForSemanticRebase(db: BriefcaseDb, txnId: string, instancePatches: IterableIterator<ChangeInstance>): void {
+    const basePath = this.getBasePathForSemanticRebaseLocalFiles(db);
+    const targetDir = path.join(basePath, txnId, this.DATA_FOLDER);
+    const filePath = path.join(targetDir, this.DATA_FILE_NAME);
+
+    if (IVaultJsFs.existsSync(targetDir))
+      IVaultJsFs.removeSync(targetDir);
+
+    IVaultJsFs.recursiveMkDirSync(targetDir);
+    IVaultJsFs.writeFileSync(filePath, "[");
+    let isFirst = true;
+    for (const instancePatch of instancePatches) {
+      // we will not take the old stage of updated instances for now, because we still don't have conflict resolution on instance level while using semantic rebase.
+      // Once we have conflict resolution on instance level, we can consider taking old stage of updated instances as well.
+      if (instancePatch.$meta.op === "Updated" && instancePatch.$meta.stage === "Old") continue;
+      IVaultJsFs.appendFileSync(filePath, `${isFirst ? "" : ","}\n${JSON.stringify(instancePatch, Base64EncodedString.replacer)}`);
+      isFirst = false;
+    }
+    IVaultJsFs.appendFileSync(filePath, "\n]");
+  }
+
+  /**
+   * Gets the base path for semantic rebase local files
+   * @param db The {@link BriefcaseDb} instance for which to get the base path
+   * @returns base path for semantic rebase local files
+   * @internal
+   */
+  public static getBasePathForSemanticRebaseLocalFiles(db: BriefcaseDb): string {
+    return path.join(path.dirname(db.pathName), this.REBASING_FOLDER, db.briefcaseId.toString(), this.DM_FOLDER);
+  }
+
+  /**
+   * Stores schemas for semantic rebase locally in appropriate folder structure
+   * @param db The [BriefcaseDb]($backend) instance for storing the schemas against a txn
+   * @param txnId The txn id for which we are storing the schemas
+   * @param schemaFileNames The schema file paths or schema xml strings to be stored
+   * @internal
+   */
+  public static storeSchemasForSemanticRebase<T extends LocalFileName[] | string[]>(db: BriefcaseDb, txnId: string, schemaFileNames: T): void {
+    const basePath = this.getBasePathForSemanticRebaseLocalFiles(db);
+    const targetDir = path.join(basePath, txnId, this.SCHEMAS_FOLDER);
+
+    if (IVaultJsFs.existsSync(targetDir))
+      IVaultJsFs.removeSync(targetDir);
+
+    IVaultJsFs.recursiveMkDirSync(targetDir);
+
+    schemaFileNames.forEach((schemaFileOrXml, index) => {
+      if (IVaultJsFs.existsSync(schemaFileOrXml)) { // This means it is a file
+        const fileName = path.basename(schemaFileOrXml);
+        const filePath = path.join(targetDir, fileName);
+        IVaultJsFs.copySync(schemaFileOrXml, filePath);
+      }
+      else {
+        const fileName = `${"Schema"}_${index}.dmschema.xml`;
+        const filePath = path.join(targetDir, fileName);
+
+        IVaultJsFs.writeFileSync(filePath, schemaFileOrXml);
+      }
+    });
+  }
+
+  /**
+   * Gets schemas for semantic rebase for a txn
+   * @param db The [BriefcaseDb]($backend) instance for getting the locally stored schemas against a txn
+   * @param txnId The txn id for which we are getting the schemas
+   * @returns the schema file paths
+   * @internal
+   */
+  public static getSchemasForTxn(db: BriefcaseDb, txnId: string): string[] {
+    const basePath = BriefcaseManager.getBasePathForSemanticRebaseLocalFiles(db);
+    const folderPath = path.join(basePath, txnId, BriefcaseManager.SCHEMAS_FOLDER);
+    return IVaultJsFs.readdirSync(folderPath).map((file) => path.join(folderPath, file));
+  }
+
+  /**
+   * Get the changed instances data for semantic rebase for a txn
+   * @param db - The [BriefcaseDb]($backend) instance for getting the locally stored changed instances against a txn
+   * @param txnId - The txn id for which we are getting the changed instances
+   * @returns Instance patches
+   * @internal
+   */
+  public static async *getChangedInstancesDataForTxn(db: BriefcaseDb, txnId: string): AsyncGenerator<ChangeInstance> {
+    const basePath = BriefcaseManager.getBasePathForSemanticRebaseLocalFiles(db);
+    const folderPath = path.join(basePath, txnId, BriefcaseManager.DATA_FOLDER);
+    const filePath = path.join(folderPath, BriefcaseManager.DATA_FILE_NAME);
+    for await (const line of IVaultJsFs.readLines(filePath)) {
+      if (line === "[" || line === "]" || line === "") continue;
+      const trimmedLine = line.trim().endsWith(",") ? line.trim().slice(0, -1) : line.trim(); // remove trailing comma if exists
+      yield JSON.parse(trimmedLine, Base64EncodedString.reviver) as ChangeInstance;
+    }
+  }
+
+  /**
+   * Checks if schema folder exists for semantic rebase for a txn
+   * @param db - The [BriefcaseDb]($backend) instance for which TO check the schema folder
+   * @param txnId - The txn id for which we are check the schema folder
+   * @returns true if exists, false otherwise
+   * @internal
+   */
+  public static semanticRebaseSchemaFolderExists(db: BriefcaseDb, txnId: string): boolean {
+    const basePath = BriefcaseManager.getBasePathForSemanticRebaseLocalFiles(db);
+    const folderPath = path.join(basePath, txnId, BriefcaseManager.SCHEMAS_FOLDER);
+    return IVaultJsFs.existsSync(folderPath);
+  }
+
+  /**
+   * Checks if data folder exists for semantic rebase for a txn
+   * @param db The [BriefcaseDb]($backend) instance for which to check the data folder.
+   * @param txnId The txn id for which to check the data folder
+   * @returns true if exists, false otherwise
+   * @internal
+   */
+  public static semanticRebaseDataFolderExists(db: BriefcaseDb, txnId: string): boolean {
+    const basePath = BriefcaseManager.getBasePathForSemanticRebaseLocalFiles(db);
+    const folderPath = path.join(basePath, txnId, BriefcaseManager.DATA_FOLDER);
+    return IVaultJsFs.existsSync(folderPath);
+  }
+
+  /**
+   * Deletes the schema folder for semantic rebase for a txn
+   * @param db The [BriefcaseDb]($backend) instance for which to delete the schema folder.
+   * @param txnId The txn id for which to delete the schema folder
+   * @internal
+   */
+  public static deleteTxnSchemaFolder(db: BriefcaseDb, txnId: string): void {
+    const basePath = BriefcaseManager.getBasePathForSemanticRebaseLocalFiles(db);
+    const txnFolderPath = path.join(basePath, txnId);
+    const folderPath = path.join(txnFolderPath, BriefcaseManager.SCHEMAS_FOLDER);
+
+    if (!IVaultJsFs.existsSync(folderPath)) return;
+
+    IVaultJsFs.removeSync(folderPath);
+
+    if (IVaultJsFs.readdirSync(txnFolderPath).length === 0) // Also delete the txn folder if empty
+      IVaultJsFs.removeSync(txnFolderPath);
+  }
+
+  /**
+  * Deletes the data folder for semantic rebase for a txn
+  * @param db The [BriefcaseDb]($backend) instance for which to delete the data folder.
+  * @param txnId The txn id for which to delete the data folder
+  * @internal
+  */
+  public static deleteTxnDataFolder(db: BriefcaseDb, txnId: string): void {
+    const basePath = BriefcaseManager.getBasePathForSemanticRebaseLocalFiles(db);
+    const txnFolderPath = path.join(basePath, txnId);
+    const folderPath = path.join(txnFolderPath, BriefcaseManager.DATA_FOLDER);
+
+    if (!IVaultJsFs.existsSync(folderPath)) return;
+
+    IVaultJsFs.removeSync(folderPath);
+
+    if (IVaultJsFs.readdirSync(txnFolderPath).length === 0) // Also delete the txn folder if empty
+      IVaultJsFs.removeSync(txnFolderPath);
+  }
+
+  /**
+   * Deletes rebase folders for semantic rebase
+   * @param db The [BriefcaseDb]($backend) instance for which to delete the rebase folders.
+   * @param checkIfEmpty If true, only deletes the base folder if it is empty, default is false
+   * @internal
+   */
+  public static deleteRebaseFolders(db: BriefcaseDb, checkIfEmpty: boolean = false): void {
+    const briefcaseRebasingRoot = path.join(path.dirname(db.pathName), this.REBASING_FOLDER, db.briefcaseId.toString());
+    if (!IVaultJsFs.existsSync(briefcaseRebasingRoot)) return;
+
+    if (checkIfEmpty) {
+      const basePath = this.getBasePathForSemanticRebaseLocalFiles(db);
+      if (IVaultJsFs.existsSync(basePath) && IVaultJsFs.readdirSync(basePath).length > 0) return;
+    }
+
+    IVaultJsFs.removeSync(briefcaseRebasingRoot);
+
+    // remove .rebasing root if it's now empty
+    const rebasingRoot = path.join(path.dirname(db.pathName), this.REBASING_FOLDER);
+    if (IVaultJsFs.existsSync(rebasingRoot) && IVaultJsFs.readdirSync(rebasingRoot).length === 0)
+      IVaultJsFs.removeSync(rebasingRoot);
+  }
+
+  /**
+   * Cleans up rebase folders for semantic rebase given briefcase file path and briefcase id
+   * @param briefcaseFilePath The briefcase file path
+   * @param briefcaseId The briefcase id
+   * @internal
+   */
+  private static cleanupRebaseFolders(briefcaseFilePath: LocalFileName, briefcaseId: BriefcaseId): void {
+    const briefcaseRebasingRoot = path.join(path.dirname(briefcaseFilePath), this.REBASING_FOLDER, briefcaseId.toString());
+    if (IVaultJsFs.existsSync(briefcaseRebasingRoot))
+      IVaultJsFs.removeSync(briefcaseRebasingRoot);
+
+    // remove .rebasing root if it's now empty
+    const rebasingRoot = path.join(path.dirname(briefcaseFilePath), this.REBASING_FOLDER);
+    if (IVaultJsFs.existsSync(rebasingRoot) && IVaultJsFs.readdirSync(rebasingRoot).length === 0)
+      IVaultJsFs.removeSync(rebasingRoot);
+  }
+
+  // #endregion
+
+}

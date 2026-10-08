@@ -1,0 +1,86 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+
+import { EmphasizeElements, IVaultApp, ScreenViewport, Tool } from "@szewtwin/core-frontend";
+import { SzewecStatus, Id64, Id64Array } from "@szewtwin/core-szewec";
+import { ClipPlaneContainment, ClipVector } from "@szewtwin/core-geometry";
+import { ColorDef, GeometryContainmentRequestProps } from "@szewtwin/core-common";
+
+/** Color code current selection set based on containment with current view clip.
+ * For selecting elements outside clip, turn off clipvolume in view settings dialog.
+ * Use EDIT on clip tools dialog to re-display clip decoration after classification.
+ */
+export class FenceClassifySelectedTool extends Tool {
+  public static override toolId = "Fence.ClassifySelected";
+  public static override get minArgs() { return 0; }
+  public static override get maxArgs() { return 1; }
+
+  public async doClassify(vp: ScreenViewport, candidates: Id64Array, clip: ClipVector, allowOverlaps: boolean): Promise<void> {
+    const requestProps: GeometryContainmentRequestProps = {
+      candidates,
+      clip: clip.toJSON(),
+      allowOverlaps,
+      viewFlags: vp.viewFlags.toJSON(),
+    };
+
+    const result = await vp.iVault.getGeometryContainment(requestProps);
+    if (SzewecStatus.SUCCESS !== result.status || undefined === result.candidatesContainment)
+      return;
+
+    const inside: Id64Array = [];
+    const outside: Id64Array = [];
+    const overlap: Id64Array = [];
+
+    result.candidatesContainment.forEach((val, index) => {
+      switch (val) {
+        case ClipPlaneContainment.StronglyInside:
+          inside.push(candidates[index]);
+          break;
+        case ClipPlaneContainment.Ambiguous:
+          overlap.push(candidates[index]);
+          break;
+        case ClipPlaneContainment.StronglyOutside:
+          outside.push(candidates[index]);
+          break;
+      }
+    });
+
+    EmphasizeElements.getOrCreate(vp).overrideElements(inside, vp, ColorDef.green);
+    EmphasizeElements.getOrCreate(vp).overrideElements(outside, vp, ColorDef.red);
+    EmphasizeElements.getOrCreate(vp).overrideElements(overlap, vp, ColorDef.blue);
+    EmphasizeElements.getOrCreate(vp).defaultAppearance = EmphasizeElements.getOrCreate(vp).createDefaultAppearance();
+  }
+
+  public override async run(insideOnly?: true | undefined): Promise<boolean> {
+    const vp = IVaultApp.viewManager.selectedView;
+    if (undefined === vp)
+      return false;
+
+    const isActive = EmphasizeElements.getOrCreate(vp).isActive(vp);
+    EmphasizeElements.clear(vp);
+
+    if (undefined === vp.view.getViewClip() || !vp.iVault.selectionSet.isActive)
+      return !isActive;
+
+    const candidates: Id64Array = [];
+    vp.iVault.selectionSet.elements.forEach((val) => {
+      if (!Id64.isInvalid(val) && !Id64.isTransient(val))
+        candidates.push(val);
+    });
+
+    if (0 === candidates.length)
+      return false;
+
+    vp.iVault.selectionSet.emptyAll();
+    await this.doClassify(vp, candidates, vp.view.getViewClip()!, insideOnly ? false : true);
+    return true;
+  }
+
+  public override async parseAndRun(...args: string[]): Promise<boolean> {
+    const insideOnly = (undefined !== args[0] && "inside" === args[0].toLowerCase()) ? true : undefined;
+    await this.run(insideOnly);
+    return true;
+  }
+}

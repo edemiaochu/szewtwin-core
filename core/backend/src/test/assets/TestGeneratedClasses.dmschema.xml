@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="TestGeneratedClasses" alias="tgc" version="1.0.0"
+    xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1">
+    <DMSchemaReference name="BisCore" version="01.00" alias="bis"/>
+
+    <DMEntityClass typeName="TestModelWithNavProp" description="a sample model with nav properties">
+        <BaseClass>bis:DefinitionModel</BaseClass>
+        <DMNavigationProperty propertyName="elemNavProp" relationshipName="ModelToElemNavRel" direction="Forward"/>
+        <DMNavigationProperty propertyName="aspectNavProp" relationshipName="ModelToAspectNavRel" direction="Forward"/>
+        <!--
+        # disabled for now due to a potential bug loading this nav prop
+        <DMNavigationProperty propertyName="relNavProp" relationshipName="ModelToRelNavRel" direction="Forward"/>
+        -->
+    </DMEntityClass>
+
+    <DMEntityClass typeName="TestEntity" description="a sample (element) entity for the end of the test relationships">
+        <BaseClass>bis:DefinitionElement</BaseClass>
+        <BaseClass>bis:ISubModeledElement</BaseClass>
+        <DMProperty propertyName="prop" typeName="string" description="a sample property"/>
+    </DMEntityClass>
+
+    <DMRelationshipClass typeName="ElemRel" strength="referencing" description="elem rel 1" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="TestElementWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestEntity"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="NonElemRel" strength="referencing" description="non elem rel 2" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="TestAspectWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestEntity"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="DerivedElemRel" strength="referencing" description="elem rel 3" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="DerivedWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestEntity"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="LinkTableRelToElemNavRel" strength="referencing" description="elem rel 4" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="LinkTableRelWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestEntity"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="LinkTableRelToModelNavRel" strength="referencing" description="elem rel 4" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="LinkTableRelWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestModelWithNavProp"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="LinkTableRelToAspectNavRel" strength="referencing" description="elem rel 4" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="LinkTableRelWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestAspectWithNavProp"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="ModelToElemNavRel" strength="referencing" description="model nav rel pointing to element" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="TestModelWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestEntity"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="ModelToAspectNavRel" strength="referencing" description="model nav rel pointing to aspect" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="TestModelWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="TestAspectWithNavProp"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <!--
+    <DMRelationshipClass typeName="ModelToRelNavRel" strength="referencing" description="model nav rel pointing to rel" modifier="sealed">
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="false">
+            <Class class="TestModelWithNavProp"/>
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is referenced by" polymorphic="false">
+            <Class class="LinkTableRelWithNavProp"/>
+        </Target>
+    </DMRelationshipClass>
+    -->
+
+    <DMRelationshipClass typeName="LinkTableRelWithNavProp" strength="referencing" description="link table rel" modifier="sealed">
+        <BaseClass>bis:ElementRefersToElements</BaseClass>
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="true">
+            <Class class="TestEntity"/>
+        </Source>
+        <Target multiplicity="(0..*)" roleLabel="is referenced by" polymorphic="true">
+            <Class class="TestEntity"/>
+        </Target>
+        <DMNavigationProperty propertyName="elemNavProp" relationshipName="LinkTableRelToElemNavRel" direction="Forward"/>
+        <DMNavigationProperty propertyName="modelNavProp" relationshipName="LinkTableRelToModelNavRel" direction="Forward"/>
+        <DMNavigationProperty propertyName="aspectNavProp" relationshipName="LinkTableRelToAspectNavRel" direction="Forward"/>
+        <!-- awaiting a fix of a bug in mapping nav props to link table relationship instances to add a navprop to another linktable rel -->
+    </DMRelationshipClass>
+
+    <DMEntityClass typeName="TestAspectWithNavProp" description="A test domain class that doesn't derive from Bis:Element and has a nav prop.">
+        <BaseClass>bis:ElementMultiAspect</BaseClass>
+        <DMNavigationProperty propertyName="navProp" relationshipName="NonElemRel" direction="Forward"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="TestElementWithNavProp" description="A test domain class that derives from Bis:Element and has a nav prop.">
+        <BaseClass>bis:DefinitionElement</BaseClass>
+        <DMNavigationProperty propertyName="navProp" relationshipName="ElemRel" direction="Forward"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="DerivedWithNavProp" description="A test domain class that derives a class in this schema and has a nav prop.">
+        <BaseClass>TestElementWithNavProp</BaseClass>
+        <DMNavigationProperty propertyName="derivedNavProp" relationshipName="DerivedElemRel" direction="Forward"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Derived2">
+        <BaseClass>DerivedWithNavProp</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Derived3">
+        <BaseClass>Derived2</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Derived4">
+        <BaseClass>Derived3</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Derived5">
+        <BaseClass>Derived4</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Derived6">
+        <BaseClass>Derived5</BaseClass>
+    </DMEntityClass>
+
+</DMSchema>

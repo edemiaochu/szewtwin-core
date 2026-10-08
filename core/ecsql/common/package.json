@@ -1,0 +1,58 @@
+{
+  "name": "@szewtwin/dmsql-common",
+  "version": "5.9.1",
+  "description": "DMSql component that can be reference on backend and frontend",
+  "main": "lib/cjs/dmsql-common.js",
+  "module": "lib/esm/dmsql-common.js",
+  "typings": "lib/cjs/dmsql-common",
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs",
+    "build:esm": "tsc 1>&2 --module ES2022 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "docs": "betools docs --json=../../../generated-docs/core/dmsql-common/file.json --tsIndexFile=./dmsql-common.ts --onlyJson",
+    "extract-api": "betools extract-api --entry=dmsql-common",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "mocha",
+    "cover": "nyc npm -s test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/dmsql/common"
+  },
+  "keywords": [
+    "Szewec",
+    "BIM",
+    "iVault",
+    "digital-twin",
+    "szewTwin",
+    "dmsql"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "dependencies": {
+    "@szewtwin/core-szewec": "workspace:*"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/chai": "4.3.1",
+    "@types/mocha": "^10.0.6",
+    "chai": "^4.3.10",
+    "eslint": "^9.31.0",
+    "mocha": "^11.1.0",
+    "nyc": "^17.1.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2"
+  },
+  "nyc": {
+    "extends": "./node_modules/@szewtwin/build-tools/.nycrc",
+    "all": true
+  }
+}

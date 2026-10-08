@@ -1,0 +1,141 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+import { expect } from "chai";
+import { Guid } from "@szewtwin/core-szewec";
+import { DrawingProps } from "@szewtwin/core-common";
+import { Drawing } from "../../Element";
+import { DocumentListModel } from "../../Model";
+import { SnapshotDb } from "../../IVaultDb";
+import { IVaultTestUtils } from "../IVaultTestUtils";
+import { withEditTxn } from "../../EditTxn";
+
+describe("Drawing", () => {
+  let ivault: SnapshotDb;
+  let documentListModelId: string;
+
+  before(() => {
+    const iVaultPath = IVaultTestUtils.prepareOutputFile("Drawing", "Drawing.dtw");
+    ivault = SnapshotDb.createEmpty(iVaultPath, { rootSubject: { name: "DrawingTest" } });
+    documentListModelId = withEditTxn(ivault, (txn) => DocumentListModel.insert(txn, SnapshotDb.rootSubjectId, "DocumentList"));
+  });
+
+  after(() => {
+    ivault.close();
+  });
+
+  class TestDrawing extends Drawing {
+    public constructor(props: DrawingProps) {
+      super(props, ivault);
+    }
+  }
+
+  describe("scaleFactor", () => {
+    function makeDrawingProps(scaleFactor: any): DrawingProps {
+      const props: DrawingProps = {
+        classFullName: Drawing.classFullName,
+        model: documentListModelId,
+        code: Drawing.createCode(ivault, documentListModelId, Guid.createValue()),
+      };
+
+      if (undefined !== scaleFactor) {
+        props.scaleFactor = scaleFactor;
+      }
+
+      return props;
+    }
+
+    function makeDrawing(scaleFactor: any): Drawing {
+      return new TestDrawing(makeDrawingProps(scaleFactor));
+    }
+
+    function expectScaleFactor(scaleFactor: any, expected: number): void {
+      const drawing = makeDrawing(scaleFactor);
+      expect(drawing.scaleFactor).to.equal(expected);
+    }
+
+    it("defaults to 1", () => {
+      expectScaleFactor(undefined, 1);
+      expectScaleFactor(null, 1);
+      expectScaleFactor(0, 1);
+      expectScaleFactor(-123, 1);
+      expectScaleFactor(false, 1);
+      expectScaleFactor(true, 1);
+      expectScaleFactor("", 1);
+      expectScaleFactor("abcdef", 1);
+    });
+
+    it("throws when attempting to set to zero or negative value", () => {
+      const drawing = makeDrawing(undefined);
+      expect(drawing.scaleFactor).to.equal(1);
+      expect(() => drawing.scaleFactor = 0).to.throw("Drawing.scaleFactor must be greater than zero");
+      expect(drawing.scaleFactor).to.equal(1);
+      expect(() => drawing.scaleFactor = -123).to.throw("Drawing.scaleFactor must be greater than zero");
+      expect(drawing.scaleFactor).to.equal(1);
+    });
+
+    it("is included in JSON IFF not equal to 1", () => {
+      function expectFactor(scaleFactor: any, expected: number | undefined): void {
+        const drawing = makeDrawing(scaleFactor);
+        expect(drawing.scaleFactor === 1).to.equal(expected === undefined);
+        const props = drawing.toJSON();
+        expect(props.scaleFactor).to.equal(expected);
+      }
+
+      expectFactor(undefined, undefined);
+      expectFactor(null, undefined);
+      expectFactor(0, undefined);
+      expectFactor(1, undefined);
+      expectFactor(-123, undefined);
+      expectFactor(false, undefined);
+      expectFactor(true, undefined);
+      expectFactor("", undefined);
+      expectFactor("abcdef", undefined);
+
+      expectFactor(2, 2);
+      expectFactor(123, 123);
+      expectFactor(0.05, 0.05);
+    });
+
+    it("is preserved when round-tripped through persistence layer", () => {
+      function test(scaleFactor: number | undefined): void {
+        const insertProps = makeDrawingProps(scaleFactor);
+        expect(insertProps.scaleFactor).to.equal(scaleFactor);
+        const elemId = withEditTxn(ivault, (txn) => txn.insertElement(insertProps));
+        const readProps = ivault.elements.getElementProps<DrawingProps>(elemId);
+        expect(readProps.scaleFactor).to.equal(scaleFactor);
+      }
+
+      test(undefined);
+      test(1);
+      test(2);
+      test(123);
+      test(0.05);
+      test(0);
+      test(-123);
+    });
+  });
+
+  describe("insert", () => {
+    function insertDrawing(scaleFactor: number | undefined): Drawing {
+      const drawingId = withEditTxn(ivault, (txn) => Drawing.insert(txn, documentListModelId, Guid.createValue(), scaleFactor));
+      return ivault.elements.getElement<Drawing>(drawingId);
+    }
+
+    it("throws if scaleFactor is not positive", () => {
+      expect(() => insertDrawing(0)).to.throw("Drawing.scaleFactor must be greater than zero");
+      expect(() => insertDrawing(-123)).to.throw("Drawing.scaleFactor must be greater than zero");
+    });
+
+    it("defaults scaleFactor to 1", () => {
+      expect(insertDrawing(undefined).scaleFactor).to.equal(1);
+    });
+
+    it("preserves scaleFactor", () => {
+      expect(insertDrawing(2).scaleFactor).to.equal(2);
+      expect(insertDrawing(123).scaleFactor).to.equal(123);
+      expect(insertDrawing(0.05).scaleFactor).to.equal(0.05);
+    });
+  });
+});

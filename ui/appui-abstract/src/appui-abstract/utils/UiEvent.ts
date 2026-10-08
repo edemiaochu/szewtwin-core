@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+/** @packageDocumentation
+ * @module Utilities
+ */
+
+import { BeUiEvent } from "@szewtwin/core-szewec";
+
+/** szewTwin.js UI UiEvent class is a subclass of BeEvent with argument type safety.
+ * @public
+ * @deprecated in 4.2 - will not be removed until after 2026-06-13. This type is a duplicate of [[BeUiEvent]], which should be used instead.
+ */
+export class UiEvent<TEventArgs> extends BeUiEvent<TEventArgs> { }

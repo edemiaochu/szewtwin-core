@@ -1,0 +1,67 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+import { expect } from "chai";
+import { Id64 } from "@szewtwin/core-szewec";
+import { BisCodeSpec, DisplayStyleProps, IVault, QueryBinder, QueryRowFormat } from "@szewtwin/core-common";
+import { DisplayStyle3d, SnapshotDb } from "../../core-backend";
+import { IVaultTestUtils } from "../IVaultTestUtils";
+import { withEditTxn } from "../../EditTxn";
+
+// spell-checker: disable
+
+describe("ExcludedElements", () => {
+  let ivault: SnapshotDb;
+
+  before(() => {
+    ivault = IVaultTestUtils.createSnapshotFromSeed(IVaultTestUtils.prepareOutputFile("IVault", "test.dtw"), IVaultTestUtils.resolveAssetFile("test.dtw"));
+  });
+
+  after(() => {
+    ivault.close();
+  });
+
+  it("should persist as a string and return as requested type", async () => {
+    const test = async (compressed: boolean) => {
+      const excludedElements = "+123";
+      const excludedElementIds = ["0x123"];
+      const props: DisplayStyleProps = {
+        classFullName: DisplayStyle3d.classFullName,
+        model: IVault.dictionaryId,
+        code: { spec: BisCodeSpec.displayStyle, scope: IVault.dictionaryId },
+        isPrivate: false,
+        jsonProperties: {
+          styles: {
+            excludedElements: compressed ? excludedElements : excludedElementIds,
+          },
+        },
+      };
+
+      const styleId = withEditTxn(ivault, (txn) => txn.insertElement(props));
+      expect(styleId).not.to.equal(Id64.invalid);
+
+      const rows: any[] = [];
+      for await (const queryRow of ivault.createQueryReader("SELECT jsonProperties FROM bis.Element WHERE DMInstanceId=?", QueryBinder.from([styleId]), { rowFormat: QueryRowFormat.UseJsPropertyNames }))
+        rows.push(queryRow.toRow());
+
+      expect(rows.length).to.equal(1);
+      const json = JSON.parse(rows[0].jsonProperties);
+      expect(json.styles.excludedElements).to.equal(excludedElements);
+
+      const getStyle = (compressExcludedElementIds?: boolean) => {
+        const loadProps = { id: styleId, displayStyle: { compressExcludedElementIds } };
+        return ivault.elements.getElement<DisplayStyle3d>(loadProps);
+      };
+
+      // Unless compressed Ids explicitly requested, the Ids are always decompressed regardless of how they are stored.
+      // This is to preserve compatibility with older front-ends that don't understand the compressed Ids; it's an unfortunate default.
+      expect(getStyle().jsonProperties.styles.excludedElements).to.deep.equal(excludedElementIds);
+      expect(getStyle(false).jsonProperties.styles.excludedElements).to.deep.equal(excludedElementIds);
+      expect(getStyle(true).jsonProperties.styles.excludedElements).to.equal(excludedElements);
+    };
+
+    await test(true);
+    await test(false);
+  });
+});

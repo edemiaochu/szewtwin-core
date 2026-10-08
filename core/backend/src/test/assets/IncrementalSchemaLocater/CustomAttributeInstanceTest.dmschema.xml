@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="CustomAttributeInstanceTest" alias="cat" version="01.00.00" displayLabel="Attribute Test Schema" description="Schema for testing CustomAttributes" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+
+  <DMStructClass typeName="TestClass" modifier="None" displayLabel="TestLabel" description="TestDescription">
+    <DMCustomAttributes>
+      <TestStringCustomAttribute xmlns="CustomAttributeInstanceTest.01.00.00">
+        <TestString>TestString</TestString>
+      </TestStringCustomAttribute>
+      <TestNumberCustomAttribute xmlns="CustomAttributeInstanceTest.01.00.00">
+        <TestNumber>1234</TestNumber>
+      </TestNumberCustomAttribute>
+      <TestBooleanCustomAttribute xmlns="CustomAttributeInstanceTest.01.00.00">
+        <TestBoolean>true</TestBoolean>
+      </TestBooleanCustomAttribute>
+    </DMCustomAttributes>
+  </DMStructClass>
+
+  <DMCustomAttributeClass typeName="TestStringCustomAttribute" appliesTo="Any" modifier="None">
+    <DMProperty propertyName="TestString" typeName="string"/>
+  </DMCustomAttributeClass>
+  <DMCustomAttributeClass typeName="TestNumberCustomAttribute" appliesTo="Any" modifier="None">
+    <DMProperty propertyName="TestNumber" typeName="int"/>
+  </DMCustomAttributeClass>
+  <DMCustomAttributeClass typeName="TestBooleanCustomAttribute" appliesTo="Any" modifier="None">
+    <DMProperty propertyName="TestBoolean" typeName="boolean"/>
+  </DMCustomAttributeClass>
+
+</DMSchema>

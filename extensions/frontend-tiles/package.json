@@ -1,0 +1,77 @@
+{
+  "name": "@szewtwin/frontend-tiles",
+  "version": "5.9.1",
+  "description": "Experimental alternative technique for visualizing the contents of iVaults",
+  "main": "lib/cjs/frontend-tiles.js",
+  "module": "lib/esm/frontend-tiles.js",
+  "typings": "lib/cjs/frontend-tiles",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./lib/esm/frontend-tiles.js",
+      "require": "./lib/cjs/frontend-tiles.js"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "internal-tools build-cjs",
+    "build:esm": "tsc 1>&2 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "cover": "npm -s test",
+    "docs": "",
+    "extract-api": "betools extract-api --entry=frontend-tiles",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-fix": "eslint --fix -f visualstudio \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "npm run -s webpackTests && certa -r chrome",
+    "webpackTests": "webpack --config ./src/test/utils/webpack-config.cjs 1>&2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "extensions/frontend-tiles"
+  },
+  "keywords": [
+    "Szewec",
+    "BIM",
+    "iVault"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "peerDependencies": {
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/certa": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/chai": "4.3.1",
+    "@types/chai-as-promised": "^7",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "~20.17.0",
+    "@types/sinon": "^17.0.2",
+    "babel-loader": "~8.2.5",
+    "babel-plugin-istanbul": "^7.0.0",
+    "chai": "^4.3.10",
+    "chai-as-promised": "^7.1.1",
+    "eslint": "^9.31.0",
+    "glob": "^10.5.0",
+    "internal-tools": "workspace:*",
+    "mocha": "^11.1.0",
+    "rimraf": "^6.0.1",
+    "sinon": "^17.0.2",
+    "source-map-loader": "^5.0.0",
+    "typescript": "~5.6.2",
+    "webpack": "^5.97.1"
+  }
+}

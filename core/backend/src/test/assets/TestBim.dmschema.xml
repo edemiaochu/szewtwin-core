@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="TestBim" alias="testbim" version="1.0.0" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1">
+  <DMSchemaReference name="BisCore" version="01.00" alias="bis"/>
+
+  <DMEntityClass typeName="TestDocument">
+    <BaseClass>bis:Document</BaseClass>
+    <BaseClass>bis:ISubModeledElement</BaseClass>
+    <DMProperty propertyName="testDocumentProperty" typeName="int" displayLabel="test doc prop"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="TestDefinitionModel">
+    <BaseClass>bis:DefinitionModel</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="TestDefinitionElement">
+    <BaseClass>bis:DefinitionElement</BaseClass>
+    <DMProperty propertyName="testProperty" typeName="string"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="TestPhysicalElement">
+    <BaseClass>bis:DefinitionElement</BaseClass>
+    <DMProperty propertyName="testProperty" typeName="string"/>
+  </DMEntityClass>
+
+  <DMRelationshipClass typeName="TestPhysicalObjectRelatedToTestPhysicalObject" strengthDirection="Backward" strength="referencing" modifier="Sealed">
+      <Source multiplicity="(0..1)" polymorphic="true" roleLabel="a" >
+          <Class class="TestPhysicalObject"/>
+      </Source>
+      <Target multiplicity="(0..1)" polymorphic="true" roleLabel="b" >
+          <Class class="TestPhysicalObject"/>
+      </Target>
+  </DMRelationshipClass>
+
+  <DMRelationshipClass typeName="ChildPropagatesChangesToParent" displayLabel="ChildPropagatesChangesToParent" modifier="None" strength="embedding" strengthDirection="forward" description="Relationship between a parent element and a child element that propagates changes to it.">
+      <BaseClass>bis:ElementOwnsChildElements</BaseClass>
+      <Source roleLabel="notified about changes to children" multiplicity="(0..1)" polymorphic="true">
+          <Class class="bis:Element"/>
+      </Source>
+      <Target roleLabel="propagates changes to parent" multiplicity="(1..*)" polymorphic="true">
+          <Class class="bis:Element"/>
+      </Target>
+  </DMRelationshipClass>
+
+  <DMEntityClass typeName="TestPhysicalObject" >
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <DMNavigationProperty propertyName="relatedElement" relationshipName="TestPhysicalObjectRelatedToTestPhysicalObject" direction="Forward" readOnly="True"/>
+    <DMProperty propertyName="longProp" typeName="long" displayLabel="an int64_t value" />
+    <DMProperty propertyName="intProperty" typeName="int" displayLabel="an int32 value" />
+  </DMEntityClass>
+
+  <DMRelationshipClass typeName="TestModelModelsElement" strength="embedding" strengthDirection="Backward" modifier="None">
+      <BaseClass>bis:ModelModelsElement</BaseClass>
+      <Source multiplicity="(0..1)" roleLabel="models" polymorphic="true">
+          <Class class="bis:Model"/>
+      </Source>
+      <Target multiplicity="(0..1)" roleLabel="is modeled by" polymorphic="true">
+          <Class class="bis:ISubModeledElement" />
+      </Target>
+  </DMRelationshipClass>
+
+  <DMRelationshipClass typeName="TestElementDrivesElement" strength="referencing" modifier="None">
+      <BaseClass>bis:ElementDrivesElement</BaseClass>
+      <DMCustomAttributes>
+          <ClassHasHandler xmlns="BisCore.01.00"/>
+      </DMCustomAttributes>
+      <DMProperty propertyName="Property1" typeName="string"/>
+      <Source multiplicity="(0..1)" roleLabel="Source Element" polymorphic="true">
+          <Class class="bis:Element"/>
+      </Source>
+      <Target multiplicity="(0..1)" roleLabel="Target Element move" polymorphic="true">
+          <Class class="bis:Element"/>
+      </Target>
+  </DMRelationshipClass>
+
+</DMSchema>

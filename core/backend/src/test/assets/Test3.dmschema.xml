@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="Test3" alias="test3" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+    <DMSchemaReference name="BisCore" version="01.00.00" alias="bis"/>
+    <DMEntityClass typeName="Test3Element">
+        <BaseClass>bis:PhysicalElement</BaseClass>
+        <DMProperty propertyName="BaseStr" typeName="string"/>
+        <DMProperty propertyName="BaseLong" typeName="long"/>
+        <DMProperty propertyName="BaseDouble" typeName="double"/>
+    </DMEntityClass>
+</DMSchema>

@@ -1,0 +1,212 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+
+import { assert } from "chai";
+import * as path from "node:path";
+import * as semver from "semver";
+import { Guid, Id64, Id64String } from "@szewtwin/core-szewec";
+import {
+  _nativeDb, BisCoreSchema, ClassRegistry, EditTxn, GenericSchema, GeometricElement3d, IVaultDb, IVaultHost, IVaultJsFs, KnownLocations, PhysicalPartition, Schema,
+  Schemas, SnapshotDb, SpatialCategory, SubjectOwnsPartitionElements,
+} from "@szewtwin/core-backend";
+import {
+  CategoryProps, Code, ColorDef, GeometricElement3dProps, IVault, InformationPartitionElementProps, ModelProps, RelatedElement,
+  TypeDefinitionElementProps,
+} from "@szewtwin/core-common";
+import { AnalyticalElement, AnalyticalModel, AnalyticalPartition, AnalyticalSchema } from "../analytical-backend";
+
+class TestAnalyticalSchema extends Schema {
+  public static override get schemaName(): string { return "TestAnalytical"; }
+  public static get schemaFilePath(): string { return path.join(__dirname, "assets", "TestAnalytical.dmschema.xml"); }
+  public static registerSchema() {
+    if (this !== Schemas.getRegisteredSchema(this.schemaName)) {
+      Schemas.unregisterSchema(this.schemaName);
+      Schemas.registerSchema(this);
+      ClassRegistry.register(TestAnalyticalPartition, this);
+      ClassRegistry.register(TestAnalyticalElement, this);
+      ClassRegistry.register(TestAnalyticalModel, this);
+    }
+  }
+}
+
+class TestAnalyticalPartition extends AnalyticalPartition {
+  public static override get className(): string { return "Partition"; }
+}
+
+class TestAnalyticalElement extends AnalyticalElement {
+  public static override get className(): string { return "Element"; }
+  public constructor(props: GeometricElement3dProps, iVault: IVaultDb) { super(props, iVault); }
+}
+
+class TestAnalyticalModel extends AnalyticalModel {
+  public static override get className(): string { return "Model"; }
+}
+
+describe("AnalyticalSchema", () => {
+  const outputDir = path.join(__dirname, "output");
+  const assetsDir = path.join(__dirname, "assets");
+
+  before(async () => {
+    await IVaultHost.startup({ cacheDir: path.join(__dirname, ".cache") });
+    AnalyticalSchema.registerSchema();
+    TestAnalyticalSchema.registerSchema();
+    if (!IVaultJsFs.existsSync(outputDir)) {
+      IVaultJsFs.mkdirSync(outputDir);
+    }
+  });
+
+  it("should import Analytical schema", async () => {
+    const iVaultFileName: string = path.join(outputDir, "ImportAnalytical.dtw");
+    if (IVaultJsFs.existsSync(iVaultFileName)) {
+      IVaultJsFs.removeSync(iVaultFileName);
+    }
+    const iVaultDb = SnapshotDb.createEmpty(iVaultFileName, { rootSubject: { name: "ImportAnalytical" }, createClassViews: true });
+    // import schemas
+    const analyticalSchemaFileName: string = path.join(KnownLocations.nativeAssetsDir, "DMSchemas", "Domain", "Analytical.dmschema.xml");
+    const testSchemaFileName: string = path.join(assetsDir, "TestAnalytical.dmschema.xml");
+    assert.isTrue(IVaultJsFs.existsSync(BisCoreSchema.schemaFilePath));
+    assert.isTrue(IVaultJsFs.existsSync(analyticalSchemaFileName));
+    assert.isTrue(IVaultJsFs.existsSync(testSchemaFileName));
+    const txn = new EditTxn(iVaultDb, "import analytical schema test");
+    txn.start();
+    await txn.iVault.importSchemas([analyticalSchemaFileName, testSchemaFileName]);
+    assert.isFalse(iVaultDb[_nativeDb].hasPendingTxns(), "Expect importSchemas to not have txns for snapshots");
+    assert.isFalse(iVaultDb[_nativeDb].hasUnsavedChanges(), "Expect no unsaved changes after importSchemas");
+    // test querySchemaVersion
+    const bisCoreSchemaVersion: string = iVaultDb.querySchemaVersion(BisCoreSchema.schemaName)!;
+    assert.isTrue(semver.satisfies(bisCoreSchemaVersion, ">= 1.0.8"));
+    assert.isTrue(semver.satisfies(bisCoreSchemaVersion, "< 2"));
+    assert.isTrue(semver.satisfies(bisCoreSchemaVersion, "^1.0.0"));
+    assert.isTrue(semver.satisfies(iVaultDb.querySchemaVersion(GenericSchema.schemaName)!, ">= 1.0.2"));
+    assert.isTrue(semver.eq(iVaultDb.querySchemaVersion("TestAnalytical")!, "1.0.0"));
+    assert.isDefined(iVaultDb.querySchemaVersion("Analytical"), "Expect Analytical to be imported");
+    assert.isDefined(iVaultDb.querySchemaVersion("analytical"), "Expect case-insensitive comparison");
+    assert.isUndefined(iVaultDb.querySchemaVersion("NotImported"), "Expect undefined to be returned for schemas that have not been imported");
+    // insert category
+    const categoryId = SpatialCategory.insert(txn, IVault.dictionaryId, "Category", { color: ColorDef.blue.tbgr });
+    assert.isTrue(Id64.isValidId64(categoryId));
+    // insert TypeDefinition
+    const typeDefinitionProps: TypeDefinitionElementProps = {
+      classFullName: "TestAnalytical:Type",
+      model: IVault.dictionaryId,
+      code: Code.createEmpty(),
+      userLabel: "TypeDefinition",
+    };
+    const typeDefinitionId: Id64String = txn.insertElement(typeDefinitionProps);
+    assert.isTrue(Id64.isValidId64(typeDefinitionId));
+    // insert partition
+    const partitionProps: InformationPartitionElementProps = {
+      classFullName: "TestAnalytical:Partition",
+      model: IVault.repositoryModelId,
+      parent: new SubjectOwnsPartitionElements(IVault.rootSubjectId),
+      code: PhysicalPartition.createCode(iVaultDb, IVault.rootSubjectId, "Partition"),
+    };
+    const partitionId: Id64String = txn.insertElement(partitionProps);
+    assert.isTrue(Id64.isValidId64(partitionId));
+    // insert model
+    const modelProps: ModelProps = {
+      classFullName: "TestAnalytical:Model",
+      modeledElement: { id: partitionId },
+    };
+    const modelId: Id64String = txn.insertModel(modelProps);
+    assert.isTrue(Id64.isValidId64(modelId));
+    // insert element
+    const elementProps: GeometricElement3dProps = {
+      classFullName: "TestAnalytical:Element",
+      model: modelId,
+      category: categoryId,
+      code: Code.createEmpty(),
+      userLabel: "A1",
+      typeDefinition: { id: typeDefinitionId, relClassName: "Analytical:AnalyticalElementIsOfType" },
+    };
+    const elementId: Id64String = txn.insertElement(elementProps);
+    // test forEachProperty and PropertyMetaData.isNavigation
+    const element: GeometricElement3d = iVaultDb.elements.getElement(elementId);
+    element.forEach((propName, property) => {
+      switch (propName) {
+        case "model":
+        case "category":
+        case "typeDefinition":
+          assert.isTrue(property.isNavigation());
+          break;
+        case "codeValue":
+        case "userLabel":
+          assert.isFalse(property.isNavigation());
+      }
+    }, true);
+
+    // test typeDefinition update scenarios
+    assert.isTrue(Id64.isValidId64(elementId));
+    assert.isTrue(Id64.isValidId64(iVaultDb.elements.getElement<GeometricElement3d>(elementId).typeDefinition!.id), "Expect valid typeDefinition.id");
+    elementProps.typeDefinition = undefined;
+    txn.updateElement(elementProps);
+    assert.isUndefined(iVaultDb.elements.getElement<GeometricElement3d>(elementId).typeDefinition, "Expect typeDefinition to be undefined");
+    elementProps.typeDefinition = RelatedElement.none;
+    txn.updateElement(elementProps);
+    assert.isUndefined(iVaultDb.elements.getElement<GeometricElement3d>(elementId).typeDefinition, "Expect typeDefinition to be undefined");
+    // close
+    txn.end();
+    iVaultDb.close();
+  });
+
+  it("should create elements exercising the Analytical domain", async () => {
+    const iVaultFileName: string = path.join(outputDir, "ImportAnalytical.dtw");
+    if (IVaultJsFs.existsSync(iVaultFileName)) {
+      IVaultJsFs.removeSync(iVaultFileName);
+    }
+    const iVaultDb = SnapshotDb.createEmpty(iVaultFileName, {
+      rootSubject: { name: "AnalyticalTest", description: "Test of the Analytical domain schema." },
+      client: "Analytical",
+      globalOrigin: { x: 0, y: 0 },
+      projectExtents: { low: { x: -500, y: -500, z: -50 }, high: { x: 500, y: 500, z: 50 } },
+      guid: Guid.createValue(),
+      createClassViews: true,
+    });
+
+    // Import the Analytical schema
+    const txn = new EditTxn(iVaultDb, "analytical domain test");
+    txn.start();
+    await txn.iVault.importSchemas([AnalyticalSchema.schemaFilePath, TestAnalyticalSchema.schemaFilePath]);
+
+    // Insert a SpatialCategory
+    const spatialCategoryProps: CategoryProps = {
+      classFullName: SpatialCategory.classFullName,
+      model: IVault.dictionaryId,
+      code: SpatialCategory.createCode(iVaultDb, IVault.dictionaryId, "Test Spatial Category"),
+      isPrivate: false,
+    };
+    const spatialCategoryId: Id64String = txn.insertElement(spatialCategoryProps);
+    assert.isTrue(Id64.isValidId64(spatialCategoryId));
+
+    // Create and populate a TestAnalyticalModel
+    const analyticalPartitionProps: InformationPartitionElementProps = {
+      classFullName: TestAnalyticalPartition.classFullName,
+      model: IVault.repositoryModelId,
+      parent: new SubjectOwnsPartitionElements(IVault.rootSubjectId),
+      code: TestAnalyticalPartition.createCode(iVaultDb, IVault.rootSubjectId, "Test Analytical Model"),
+    };
+    const analyticalPartitionId: Id64String = txn.insertElement(analyticalPartitionProps);
+    assert.isTrue(Id64.isValidId64(analyticalPartitionId));
+    const analyticalModel = iVaultDb.models.createModel<TestAnalyticalModel>({
+      classFullName: TestAnalyticalModel.classFullName,
+      modeledElement: { id: analyticalPartitionId },
+    });
+    const analyticalModelId: Id64String = txn.insertModel(analyticalModel.toJSON());
+    assert.isTrue(Id64.isValidId64(analyticalModelId));
+
+    // Create a Test Analytical element
+    const testAnalyticalProps: GeometricElement3dProps = {
+      classFullName: TestAnalyticalElement.classFullName,
+      model: analyticalModelId,
+      category: spatialCategoryId,
+      code: Code.createEmpty(),
+    };
+    const analyticalElementId: Id64String = txn.insertElement(testAnalyticalProps);
+    assert.isTrue(Id64.isValidId64(analyticalElementId));
+
+    txn.end("save", "Insert Test Analytical elements");
+    iVaultDb.close();
+  });
+});

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="PropertyTest" alias="pt" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="BisCore" version="01.00.01" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+  <DMSchemaReference name="Formats" version="01.00.00" alias="f"/>
+  <DMSchemaReference name="Units" version="01.00.09" alias="u"/>
+
+  <DMEntityClass typeName="EntityOne" modifier="Sealed">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <DMProperty propertyName="PropertyWithCustomAttribute" typeName="int" displayLabel="PropertyHasAttribute" description="Property has CustomAttribute" >
+      <Localizable xmlns="CoreCustomAttributes.01.00.03"/>
+    </DMProperty>
+    <DMProperty propertyName="BinaryProperty" typeName="binary" displayLabel="binary" description="Binary Property" readOnly="true" category="TestPropertyCategory" priority="1"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="boolean" description="Boolean Property" readOnly="true" category="TestPropertyCategory" priority="2"/>
+    <DMProperty propertyName="DateTimeProperty" typeName="dateTime" displayLabel="dateTime" description="DateTime Property" readOnly="true" category="TestPropertyCategory" priority="3"/>
+    <DMProperty propertyName="DoubleProperty" typeName="double" displayLabel="double" description="Double Property" readOnly="true" minimumValue="1" category="TestPropertyCategory" kindOfQuantity="LENGTH" priority="4" />
+    <DMProperty propertyName="IntProperty" typeName="int" displayLabel="integer" description="Integer Property" readOnly="true" minimumValue="1" maximumValue="1000" category="TestPropertyCategory" kindOfQuantity="LENGTH"  priority="5"/>
+    <DMProperty propertyName="LongProperty" typeName="long" displayLabel="Long" description="Long Property" readOnly="true" minimumValue="1" category="TestPropertyCategory" kindOfQuantity="LENGTH"  priority="6"/>
+    <DMProperty propertyName="Point2dProperty" typeName="point2d" displayLabel="Point2d" description="Point2d Property" readOnly="true" category="TestPropertyCategory" priority="7"/>
+    <DMProperty propertyName="Point3dProperty" typeName="point3d" displayLabel="Point3d" description="Point3d Property" readOnly="true" category="TestPropertyCategory" priority="8"/>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property" readOnly="true" minimumLength="1" maximumLength="1000" category="TestPropertyCategory" priority="9"/>
+    <DMProperty propertyName="IGeometryProperty" typeName="Szewec.Geometry.Common.IGeometry" displayLabel="IGeometry" description="IGeometry Property" readOnly="true" category="TestPropertyCategory" priority="10"/>
+    <DMArrayProperty propertyName="StringArrayProperty" typeName="string" displayLabel="StringArray" description="StringArray Property" readOnly="true" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="IGeometryArrayProperty" typeName="Szewec.Geometry.Common.IGeometry" displayLabel="IGeometryArray" description="IGeometryArray Property" readOnly="true" minOccurs="0" maxOccurs="3" category="TestPropertyCategory" priority="10"/>
+    <DMStructProperty propertyName="StructProperty" typeName="TestStruct" displayLabel="StructProperty" description="Struct Property" readOnly="true"/>
+    <DMStructArrayProperty propertyName="StructArrayProperty" typeName="TestStruct" displayLabel="StructArrayProperty" description="StructArray Property" readOnly="true" minOccurs="0" maxOccurs="10"/>
+    <DMNavigationProperty propertyName="EntityTwoForward" relationshipName="EntityOneHasEntityTwo" direction="Forward" readOnly="true" displayLabel="NavTestEntityTwo" description="Navigation Property for EntityTwo"/>
+    <DMProperty propertyName="JsonProperties" typeName="string" extendedTypeName="Json" description="A JSON string containing scope and fragment specifications used to generate and validate code values"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="EntityTwo" modifier="None">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <DMNavigationProperty propertyName="EntityTwoParent" relationshipName="EntityTwoHasChildren" direction="Backward" readOnly="true"
+        displayLabel="EntityTwoParent" description="Navigation Property for EntityTwo parent."/>
+  </DMEntityClass>
+
+  <DMStructClass typeName="TestStruct" modifier="None">
+    <DMProperty propertyName="PropOne" typeName="double" />
+    <DMProperty propertyName="PropTwo" typeName="double" />
+  </DMStructClass>
+
+  <DMRelationshipClass typeName="EntityOneHasEntityTwo" strength="referencing" modifier="Sealed">
+    <Source multiplicity="(0..*)" roleLabel="is referenced by" polymorphic="false">
+        <Class class="EntityOne" />
+    </Source>
+    <Target multiplicity="(1..1)" roleLabel="has" polymorphic="false">
+        <Class class="EntityTwo" />
+    </Target>
+  </DMRelationshipClass>
+
+  <DMRelationshipClass typeName="EntityTwoHasChildren" strength="referencing" modifier="Sealed">
+    <Source multiplicity="(1..1)" roleLabel="has" polymorphic="false">
+        <Class class="EntityTwo" />
+    </Source>
+    <Target multiplicity="(0..*)" roleLabel="is parented by" polymorphic="false">
+        <Class class="EntityTwo" />
+    </Target>
+  </DMRelationshipClass>
+
+  <PropertyCategory typeName="TestPropertyCategory" priority="1000" />
+
+  <KindOfQuantity typeName="LENGTH" displayLabel="Length" persistenceUnit="u:M" presentationUnits="f:DefaultRealU(2)[u:M];f:DefaultRealU(2)[u:FT]" relativeError="0.0001"/>
+</DMSchema>

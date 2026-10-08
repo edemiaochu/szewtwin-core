@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="EnumerationTest" alias="enumt" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMEnumeration typeName="IntEnumeration" backingTypeName="int" isStrict="true" displayLabel="Int Enumeration" description="Test Enumeration">
+    <DMEnumerator value="0" name="None" displayLabel="None" description="None description"/>
+    <DMEnumerator value="1" name="Select" displayLabel="Select" description="Select description"/>
+    <DMEnumerator value="2" name="Insert" displayLabel="Insert" description="Insert description"/>
+  </DMEnumeration>
+
+  <DMEnumeration typeName="StringEnumeration" backingTypeName="string" isStrict="false" displayLabel="String Enumeration" description="Test Enumeration">
+    <DMEnumerator value="alpha" name="Alpha" displayLabel="First" description="Alpha description"/>
+    <DMEnumerator value="beta" name="Beta" displayLabel="Second" description="Beta description"/>
+    <DMEnumerator value="omega" name="Omega" displayLabel="Last" description="Omega description"/>
+    <DMEnumerator value="noLabelDescription" name="NoLabelOrDescription"/>
+  </DMEnumeration>
+</DMSchema>

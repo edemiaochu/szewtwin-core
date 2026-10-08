@@ -1,0 +1,75 @@
+{
+  "name": "@szewtwin/hypermodeling-frontend",
+  "version": "5.9.1",
+  "description": "szewTwin.js hypermodeling package",
+  "main": "lib/cjs/hypermodeling-frontend.js",
+  "module": "lib/esm/hypermodeling-frontend.js",
+  "typings": "lib/cjs/hypermodeling-frontend",
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run -s copy:public && npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs",
+    "build:esm": "tsc 1>&2 --module ES2022 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "copy:public": "cpx \"./src/public/**/*\" ./lib/public",
+    "cover": "npm -s test",
+    "docs": "betools docs --json=../../generated-docs/core/hypermodeling-frontend/file.json --tsIndexFile=./hypermodeling-frontend.ts --onlyJson",
+    "extract-api": "betools extract-api --entry=hypermodeling-frontend",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "pseudolocalize": "betools pseudolocalize --englishDir ./src/public/locales/en --out ./public/locales/en-PSEUDO",
+    "test": "npm run -s webpackTests && certa -r chrome",
+    "test:debug": "certa -r chrome --debug",
+    "webpackTests": "webpack --config ./src/test/utils/webpack.config.js 1>&2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/hypermodeling"
+  },
+  "keywords": [
+    "Szewec",
+    "iVault",
+    "BIM",
+    "HyperModeling"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "peerDependencies": {
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "@szewtwin/certa": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/chai": "4.3.1",
+    "@types/mocha": "^10.0.6",
+    "babel-loader": "~8.2.5",
+    "babel-plugin-istanbul": "^7.0.0",
+    "chai": "^4.3.10",
+    "cpx2": "^8.0.0",
+    "eslint": "^9.31.0",
+    "glob": "^10.5.0",
+    "mocha": "^11.1.0",
+    "nyc": "^17.1.0",
+    "rimraf": "^6.0.1",
+    "source-map-loader": "^5.0.0",
+    "typescript": "~5.6.2",
+    "webpack": "^5.97.1"
+  },
+  "dependencies": {
+    "@szewtwin/appui-abstract": "workspace:*"
+  },
+  "nyc": {
+    "extends": "./node_modules/@szewtwin/build-tools/.nycrc"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "name": "@szewtwin/core-mobile",
+  "version": "5.9.1",
+  "description": "szewTwin.js MobileHost and MobileApp",
+  "license": "MIT",
+  "engines": {
+    "node": "^20.0.0 || ^22.0.0 || ^24.0.0"
+  },
+  "scripts": {
+    "build": "npm run -s build:cjs",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "docs": "betools docs --json=../../generated-docs/core/core-mobile/file.json --tsIndexFile=./core-mobile.ts --onlyJson",
+    "extract-api": "betools extract-api --entry=core-mobile",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "",
+    "cover": ""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/mobile"
+  },
+  "keywords": [
+    "Szewec",
+    "digital-twin",
+    "szewTwin",
+    "iVault"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "peerDependencies": {
+    "@szewtwin/core-backend": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*"
+  },
+  "dependencies": {
+    "lodash": "^4.18.0",
+    "superagent": "^9.0.1",
+    "ws": "^7.5.10"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-backend": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/chai": "4.3.1",
+    "@types/fs-extra": "^4.0.7",
+    "@types/lodash": "^4.14.202",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "~20.17.0",
+    "@types/superagent": "^8.1.6",
+    "@types/ws": "^7.0.0",
+    "chai": "^4.3.10",
+    "chai-as-promised": "^7.1.1",
+    "dotenv": "^16.4.5",
+    "dotenv-expand": "^5.1.0",
+    "eslint": "^9.31.0",
+    "mocha": "^11.1.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2"
+  }
+}

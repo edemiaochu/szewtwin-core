@@ -1,0 +1,67 @@
+{
+  "name": "@szewtwin/dmschema-metadata",
+  "version": "5.9.1",
+  "description": "DMObjects core concepts in typescript",
+  "license": "MIT",
+  "main": "lib/cjs/dmschema-metadata.js",
+  "typings": "lib/cjs/dmschema-metadata",
+  "module": "lib/esm/dmschema-metadata.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/dmschema-metadata"
+  },
+  "scripts": {
+    "build": "npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs && npm run -s copy:test-assets",
+    "build:esm": "tsc 1>&2 --module ES2022 --outDir lib/esm",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "copy:test-assets": "cpx \"./src/test/assets/**/*\" ./lib/cjs/test/assets",
+    "extract-api": "betools extract-api --entry=dmschema-metadata",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "vitest --run",
+    "docs": "betools docs --json=../../generated-docs/core/dmschema-metadata/file.json --tsIndexFile=./dmschema-metadata.ts --onlyJson && npm run -s extract",
+    "extract": "betools extract --fileExt=ts --extractFrom=./src/test/example-code --recursive --out=../../generated-docs/extract",
+    "cover": "vitest --run --coverage",
+    "start": "npm run -s lint && npm run -s clean && npm run -s build && npm run -s test & npm run -s cover & npm run -s docs"
+  },
+  "keywords": [
+    "Szewec",
+    "iVault",
+    "szewTwin",
+    "szewTwin.js",
+    "DM"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "devDependencies": {
+    "@szewec/aec-units-schema": "^1.0.3",
+    "@szewec/bis-custom-attributes-schema": "^1.0.0",
+    "@szewec/cif-units-schema": "^1.0.7",
+    "@szewec/core-custom-attributes-schema": "^1.0.4",
+    "@szewec/formats-schema": "^1.0.0",
+    "@szewec/road-rail-units-schema": "^1.0.3",
+    "@szewec/units-schema": "^1.0.9",
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-quantity": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/benchmark": "^2.1.0",
+    "@types/node": "~20.17.0",
+    "@vitest/coverage-v8": "^3.0.6",
+    "@xmldom/xmldom": "~0.8.13",
+    "benchmark": "^2.1.4",
+    "cpx2": "^8.0.0",
+    "eslint": "^9.31.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2",
+    "vitest": "^3.0.6"
+  },
+  "peerDependencies": {
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-quantity": "workspace:*"
+  }
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="TestAnalytical" alias="testAnlyt" version="1.0.0" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1" displayLabel="Test Analytical" description="Used only for testing">
+
+    <DMSchemaReference name="Analytical" version="1.0.0" alias="anlyt" />
+
+    <DMEntityClass typeName="Partition">
+        <BaseClass>anlyt:AnalyticalPartition</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Model">
+        <BaseClass>anlyt:AnalyticalModel</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Element">
+        <BaseClass>anlyt:AnalyticalElement</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Type">
+        <BaseClass>anlyt:AnalyticalType</BaseClass>
+    </DMEntityClass>
+
+</DMSchema>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="CloneTest" alias="ct" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1">
+
+  <DMSchemaReference name="BisCore" version="01.00.00" alias="bis"/>
+
+  <DMEntityClass typeName="PhysicalType">
+    <BaseClass>bis:PhysicalType</BaseClass>
+    <DMProperty propertyName="String1" typeName="string"/>
+    <DMProperty propertyName="String2" typeName="string"/>
+  </DMEntityClass>
+
+</DMSchema>

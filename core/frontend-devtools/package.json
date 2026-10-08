@@ -1,0 +1,54 @@
+{
+  "name": "@szewtwin/frontend-devtools",
+  "version": "5.9.1",
+  "description": "Debug menu and supporting UI widgets",
+  "main": "lib/cjs/frontend-devtools.js",
+  "module": "lib/esm/frontend-devtools.js",
+  "typings": "lib/cjs/frontend-devtools",
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run -s copy:public && npm run -s build:cjs && npm run -s build:esm",
+    "build:cjs": "tsc 1>&2 --outDir lib/cjs",
+    "build:esm": "tsc 1>&2 --module ES2022 --outDir lib/esm",
+    "copy:public": "cpx \"./public/**/*\" ./lib/public",
+    "clean": "rimraf -g lib .rush/temp/package-deps*.json",
+    "docs": "betools docs --json=../../generated-docs/core/frontend-devtools/file.json --tsIndexFile=./frontend-devtools.ts --onlyJson",
+    "extract-api": "betools extract-api --entry=frontend-devtools",
+    "lint": "eslint \"./src/**/*.ts\" 1>&2",
+    "lint-deprecation": "eslint --fix -f visualstudio --no-inline-config -c ../../common/config/eslint/eslint.config.deprecation-policy.js \"./src/**/*.ts\"",
+    "test": "",
+    "cover": ""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/frontend-devtools"
+  },
+  "keywords": [
+    "Szewec",
+    "BIM",
+    "iVault",
+    "UI",
+    "Widget"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "dependencies": {
+    "@szewtwin/core-szewec": "workspace:*",
+    "@szewtwin/core-common": "workspace:*",
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-geometry": "workspace:*",
+    "file-saver": "^2.0.2"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "@types/file-saver": "^2.0.1",
+    "cpx2": "^8.0.0",
+    "eslint": "^9.31.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2"
+  }
+}

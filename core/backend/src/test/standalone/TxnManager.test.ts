@@ -1,0 +1,1231 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+
+import { assert, expect } from "chai";
+import { BeDuration, BeEvent, Guid, Id64, Id64String, IVaultStatus, OpenMode } from "@szewtwin/core-szewec";
+import { LineSegment3d, Point3d, YawPitchRollAngles } from "@szewtwin/core-geometry";
+import {
+  Code, ColorByName, DomainOptions, EntityIdAndClassId, EntityIdAndClassIdIterable, GeometryStreamBuilder, IVault, IVaultError, SubCategoryAppearance, TxnAction, UpgradeOptions,
+} from "@szewtwin/core-common";
+import {
+  _nativeDb,
+  ChangeInstanceKey,
+  ChannelControl,
+  EditTxn, IVaultDb, IVaultJsFs, PhysicalModel, PhysicalPartition, RebaseHandler, setMaxEntitiesPerEvent, SpatialCategory, StandaloneDb, SubCategory, SubjectOwnsPartitionElements, TxnChangedEntities, TxnManager, withEditTxn,
+} from "../../core-backend";
+import { IVaultTestUtils, TestElementDrivesElement, TestPhysicalObject, TestPhysicalObjectProps } from "../IVaultTestUtils";
+import { IVaultNative } from "../../internal/NativePlatform";
+import { EntityClass, SchemaItemKey, SchemaKey } from "@szewtwin/dmschema-metadata";
+
+/// cspell:ignore accum
+
+function insertPhysicalModel(txn: EditTxn, parentSubjectId: Id64String, name: string, privateModel = false): Id64String {
+  const partition = txn.iVault.elements.createElement({
+    classFullName: PhysicalPartition.classFullName,
+    parent: new SubjectOwnsPartitionElements(parentSubjectId),
+    model: IVault.repositoryModelId,
+    code: PhysicalPartition.createCode(txn.iVault, parentSubjectId, name),
+  });
+  const partitionId = txn.insertElement(partition.toJSON());
+  const model = txn.iVault.models.createModel({
+    modeledElement: { id: partitionId },
+    classFullName: PhysicalModel.classFullName,
+    isPrivate: privateModel,
+  });
+  return txn.insertModel(model.toJSON());
+}
+
+function insertSpatialCategory(txn: EditTxn, definitionModelId: Id64String, name: string, appearance: SubCategoryAppearance): Id64String {
+  const category = SpatialCategory.create(txn.iVault, definitionModelId, name);
+  category.id = txn.insertElement(category.toJSON());
+  const subCategory = txn.iVault.elements.getElement<SubCategory>(IVaultDb.getDefaultSubCategoryId(category.id));
+  subCategory.appearance = appearance;
+  txn.updateElement(subCategory.toJSON());
+  return category.id;
+}
+
+describe("TxnManager", () => {
+  let ivault: StandaloneDb;
+  let roIvault: StandaloneDb;
+  let props: TestPhysicalObjectProps;
+  let testFileName: string;
+
+  const performUpgrade = (pathname: string) => {
+    const nativeDb = new IVaultNative.platform.BldDb();
+    const upgradeOptions: UpgradeOptions = {
+      domain: DomainOptions.Upgrade,
+      schemaLockHeld: true,
+    };
+    nativeDb.openIVault(pathname, OpenMode.ReadWrite, upgradeOptions);
+    nativeDb.deleteAllTxns();
+    nativeDb.closeFile();
+  };
+
+  beforeEach(async () => {
+    IVaultTestUtils.registerTestBimSchema();
+    // make a unique name for the output file so this test can be run in parallel
+    testFileName = IVaultTestUtils.prepareOutputFile("TxnManager", `${Guid.createValue()}.bim`);
+    const seedFileName = IVaultTestUtils.resolveAssetFile("test.dtw");
+    const schemaFileName = IVaultTestUtils.resolveAssetFile("TestBim.dmschema.xml");
+    IVaultJsFs.copySync(seedFileName, testFileName);
+    performUpgrade(testFileName);
+    ivault = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+    await ivault.importSchemas([schemaFileName]); // will throw an exception if import fails
+    ivault.channels.addAllowedChannel(ChannelControl.sharedChannelName);
+
+    const builder = new GeometryStreamBuilder();
+    builder.appendGeometry(LineSegment3d.create(Point3d.createZero(), Point3d.create(5, 0, 0)));
+
+    props = withEditTxn(ivault, "schema change", (txn) => {
+      const model = insertPhysicalModel(txn, IVault.rootSubjectId, "TestModel");
+      const category = insertSpatialCategory(txn, IVault.dictionaryId, "MySpatialCategory", new SubCategoryAppearance({ color: ColorByName.darkRed }));
+      return {
+        classFullName: "TestBim:TestPhysicalObject",
+        model,
+        category,
+        code: Code.createEmpty(),
+        intProperty: 100,
+        placement: {
+          origin: new Point3d(1, 2, 0),
+          angles: new YawPitchRollAngles(),
+        },
+        geom: builder.geometryStream,
+      };
+    });
+
+    ivault[_nativeDb].deleteAllTxns();
+    roIvault = StandaloneDb.openFile(testFileName, OpenMode.Readonly);
+  });
+
+  afterEach(() => {
+    roIvault.close();
+    ivault.close();
+    IVaultJsFs.removeSync(testFileName);
+  });
+
+  function makeEntity(id: string, classFullName: string): EntityIdAndClassId {
+    const classId = ivault[_nativeDb].classNameToId(classFullName);
+    expect(Id64.isValid(classId)).to.be.true;
+    return { id, classId };
+  }
+
+  function physicalModelEntity(id: string) {
+    return makeEntity(id, "BisCore:PhysicalModel");
+  }
+  function physicalObjectEntity(id: string) {
+    return makeEntity(id, "TestBim:TestPhysicalObject");
+  }
+  function spatialCategoryEntity(id: string) {
+    return makeEntity(id, "BisCore:SpatialCategory");
+  }
+  function subCategoryEntity(categoryId: string) {
+    return makeEntity(IVault.getDefaultSubCategoryId(categoryId), "BisCore:SubCategory");
+  }
+
+  it("TxnManager", async () => {
+    const models = ivault.models;
+    const elements = ivault.elements;
+    const modelId = props.model;
+    const cleanup: Array<() => void> = [];
+
+    await withEditTxn(ivault, "txn-manager", async (editTxn) => {
+      let model = models.getModel<PhysicalModel>(modelId);
+      assert.isUndefined(model.geometryGuid, "geometryGuid starts undefined");
+
+      assert.isDefined(await ivault.schemaContext.getSchemaItem(new SchemaItemKey("TestPhysicalObject", new SchemaKey("TestBim", 1, 0, 0)), EntityClass), "TestPhysicalObject is present");
+
+      const txns = ivault.txns;
+      assert.isFalse(txns.hasPendingTxns);
+
+      const change1Msg = "change 1";
+      const change2Msg = "change 2";
+      let beforeUndo = 0;
+      let afterUndo = 0;
+      let undoAction = TxnAction.None;
+
+      cleanup.push(txns.onBeforeUndoRedo.addListener(() => beforeUndo++));
+      cleanup.push(txns.onAfterUndoRedo.addListener((isUndo) => {
+        afterUndo++;
+        undoAction = isUndo ? TxnAction.Reverse : TxnAction.Reinstate;
+      }));
+
+      let elementId = editTxn.insertElement(props);
+      assert.isFalse(txns.isRedoPossible);
+      assert.isFalse(txns.isUndoPossible);
+      assert.isTrue(txns.hasUnsavedChanges);
+      assert.isFalse(txns.hasPendingTxns);
+
+      editTxn.saveChanges(change1Msg);
+      assert.isFalse(txns.hasUnsavedChanges);
+      assert.isTrue(txns.hasPendingTxns);
+      assert.isTrue(txns.hasLocalChanges);
+
+      expect(ivault[_nativeDb].getCurrentTxnId()).not.equal(roIvault[_nativeDb].getCurrentTxnId());
+      roIvault[_nativeDb].restartDefaultTxn();
+      expect(ivault[_nativeDb].getCurrentTxnId()).equal(roIvault[_nativeDb].getCurrentTxnId());
+
+      const classId = ivault[_nativeDb].classNameToId(props.classFullName);
+      assert.isTrue(Id64.isValid(classId));
+      const class2 = ivault[_nativeDb].classIdToName(classId);
+      assert.equal(class2, props.classFullName);
+      model = models.getModel(modelId);
+      assert.isDefined(model.geometryGuid);
+
+      txns.reverseSingleTxn();
+      assert.isFalse(txns.hasPendingTxns, "should not have pending txns if they all are reversed");
+      assert.isFalse(txns.hasLocalChanges);
+      txns.reinstateTxn();
+      assert.isTrue(txns.hasPendingTxns, "now there should be pending txns again");
+      assert.isTrue(txns.hasLocalChanges);
+      beforeUndo = afterUndo = 0; // reset this for tests below
+
+      model = models.getModel(modelId);
+      assert.isDefined(model.geometryGuid);
+      const guid1 = model.geometryGuid;
+
+      let element = elements.getElement<TestPhysicalObject>(elementId);
+      assert.equal(element.intProperty, 100, "int property should be 100");
+
+      assert.isTrue(txns.isUndoPossible);  // we have an undoable Txn, but nothing undone.
+      assert.equal(change1Msg, txns.getUndoString());
+      assert.equal(IVaultStatus.Success, txns.reverseSingleTxn());
+
+      model = models.getModel(modelId);
+      assert.isUndefined(model.geometryGuid, "geometryGuid undefined after undo");
+
+      assert.isTrue(txns.isRedoPossible);
+      assert.equal(change1Msg, txns.getRedoString());
+      assert.equal(beforeUndo, 1);
+      assert.equal(afterUndo, 1);
+      assert.equal(undoAction, TxnAction.Reverse);
+
+      assert.throws(() => elements.getElementProps(elementId), IVaultError, "element not found");
+      assert.throws(() => elements.getElement(elementId), IVaultError);
+      assert.equal(IVaultStatus.Success, txns.reinstateTxn());
+      model = models.getModel(modelId);
+      assert.equal(model.geometryGuid, guid1, "geometryGuid should return redo");
+
+      assert.isTrue(txns.isUndoPossible);
+      assert.isFalse(txns.isRedoPossible);
+      assert.equal(beforeUndo, 2);
+      assert.equal(afterUndo, 2);
+      assert.equal(undoAction, TxnAction.Reinstate);
+
+      element = elements.getElement(elementId);
+      element.intProperty = 200;
+      element.update(editTxn);
+
+      editTxn.saveChanges(change2Msg);
+
+      model = models.getModel(modelId);
+      assert.equal(model.geometryGuid, guid1, "geometryGuid should not update with no geometry changes");
+
+      element = elements.getElement(elementId);
+      assert.equal(element.intProperty, 200, "int property should be 200");
+      assert.equal(txns.getTxnDescription(txns.queryPreviousTxnId(txns.getCurrentTxnId())), change2Msg);
+
+      assert.equal(IVaultStatus.Success, txns.reverseSingleTxn());
+      element = elements.getElement(elementId);
+      assert.equal(element.intProperty, 100, "int property should be 100");
+
+      // make sure abandon changes works.
+      element.delete(editTxn);
+      assert.throws(() => elements.getElement(elementId), IVaultError);
+      editTxn.abandonChanges();
+      element = elements.getElement(elementId); // should be back now.
+      editTxn.insertElement(props); // create a new element
+      editTxn.saveChanges(change2Msg);
+
+      model = models.getModel(modelId);
+      assert.isDefined(model.geometryGuid);
+      assert.notEqual(model.geometryGuid, guid1, "geometryGuid should update with adds");
+
+      elementId = editTxn.insertElement(props); // create a new element
+      assert.isTrue(txns.hasUnsavedChanges);
+      assert.equal(IVaultStatus.Success, txns.reverseSingleTxn());
+      assert.isFalse(txns.hasUnsavedChanges);
+      assert.throws(() => elements.getElement(elementId), IVaultError); // reversing a txn with pending uncommitted changes should abandon them.
+      assert.equal(IVaultStatus.Success, txns.reinstateTxn());
+      assert.throws(() => elements.getElement(elementId), IVaultError); // doesn't come back, wasn't committed
+
+      // verify multi-txn operations are undone/redone together
+      const el1 = editTxn.insertElement(props);
+      editTxn.saveChanges("step 1");
+      txns.beginMultiTxnOperation();
+      assert.equal(1, txns.getMultiTxnOperationDepth());
+      const el2 = editTxn.insertElement(props);
+      editTxn.saveChanges("step 2");
+      const el3 = editTxn.insertElement(props);
+      editTxn.saveChanges("step 3");
+      txns.endMultiTxnOperation();
+      assert.equal(0, txns.getMultiTxnOperationDepth());
+      assert.equal(IVaultStatus.Success, txns.reverseSingleTxn());
+      assert.throws(() => elements.getElement(el2), IVaultError);
+      assert.throws(() => elements.getElement(el3), IVaultError);
+      elements.getElement(el1);
+      assert.equal(IVaultStatus.Success, txns.reverseSingleTxn());
+      assert.throws(() => elements.getElement(el1), IVaultError);
+      assert.equal(IVaultStatus.Success, txns.reinstateTxn());
+      assert.throws(() => elements.getElement(el2), IVaultError);
+      assert.throws(() => elements.getElement(el3), IVaultError);
+      elements.getElement(el1);
+      assert.equal(IVaultStatus.Success, txns.reinstateTxn());
+      elements.getElement(el1);
+      elements.getElement(el2);
+      elements.getElement(el3);
+
+      function insert2Elements(): [string, string] {
+        const id0 = editTxn.insertElement(props);
+        editTxn.saveChanges();
+        const id1 = editTxn.insertElement(props);
+        editTxn.saveChanges();
+        return [id0, id1];
+      }
+
+      function expectElementExistences(ids: [string, string], expectExists: boolean): void {
+        expect(elements.tryGetElementProps(ids[0]) !== undefined).to.equal(expectExists);
+        expect(elements.tryGetElementProps(ids[0]) !== undefined).to.equal(expectExists);
+      }
+
+      function expectTxnDepth(expected: number): void {
+        expect(txns.getMultiTxnOperationDepth()).to.equal(expected);
+      }
+
+      // verify nested multi-txn operations
+      expectTxnDepth(0);
+      txns.beginMultiTxnOperation();
+      expectTxnDepth(1);
+      txns.beginMultiTxnOperation();
+      expectTxnDepth(2);
+      const set1 = insert2Elements();
+      expectElementExistences(set1, true);
+      txns.endMultiTxnOperation();
+
+      expectTxnDepth(1);
+      txns.reverseSingleTxn();
+      expectElementExistences(set1, false);
+      txns.reinstateTxn();
+      expectElementExistences(set1, true);
+
+      expectTxnDepth(1);
+      txns.beginMultiTxnOperation();
+      expectTxnDepth(2);
+      const set2 = insert2Elements();
+      expectElementExistences(set2, true);
+      txns.endMultiTxnOperation();
+
+      expectTxnDepth(1);
+      txns.endMultiTxnOperation();
+
+      expectTxnDepth(0);
+      txns.reverseSingleTxn();
+      expectElementExistences(set2, false);
+      expectElementExistences(set1, false);
+      txns.reinstateTxn();
+      expectElementExistences(set1, true);
+      expectElementExistences(set2, true);
+
+      assert.equal(IVaultStatus.Success, txns.cancelTo(txns.queryFirstTxnId()));
+      assert.isFalse(txns.hasUnsavedChanges);
+      assert.isFalse(txns.hasPendingTxns);
+      assert.isFalse(txns.hasLocalChanges);
+
+      model = models.getModel(modelId);
+      assert.isUndefined(model.geometryGuid, "undo all, geometryGuid goes back to undefined");
+
+      const modifyId = editTxn.insertElement(props);
+      editTxn.saveChanges("check guid changes");
+
+      model = models.getModel(modelId);
+      const guid2 = model.geometryGuid;
+      const toModify = elements.getElement<TestPhysicalObject>(modifyId);
+      toModify.placement.origin.x += 1;
+      toModify.placement.origin.y += 1;
+      editTxn.updateElement(toModify.toJSON());
+      const saveUpdateMsg = "save update to modify guid";
+      editTxn.saveChanges(saveUpdateMsg);
+      model = models.getModel(modelId);
+      assert.notEqual(guid2, model.geometryGuid, "update placement should change guid");
+
+      const lastMod = models.queryLastModifiedTime(modelId);
+      await BeDuration.wait(300); // we update the lastMod below, make sure it will be different by waiting .3 seconds
+      const guid3 = model.geometryGuid;
+      editTxn.updateGeometryGuid(modelId);
+      model = models.getModel(modelId);
+      assert.notEqual(guid3, model.geometryGuid, "update model should change guid");
+      const lastMod2 = models.queryLastModifiedTime(modelId);
+      assert.notEqual(lastMod, lastMod2);
+      // ivault.saveChanges("update geometry guid");
+
+      // Deleting a geometric element updates model's GeometryGuid; deleting any element updates model's LastMod.
+      await BeDuration.wait(300); // for lastMod...
+      const guid4 = model.geometryGuid;
+      editTxn.deleteElement(modifyId);
+      const deleteTxnMsg = "save deletion of element";
+      editTxn.saveChanges(deleteTxnMsg);
+      assert.throws(() => elements.getElement(modifyId));
+      model = models.getModel(modelId);
+      expect(model.geometryGuid).not.to.equal(guid4);
+      const lastMod3 = models.queryLastModifiedTime(modelId);
+      expect(lastMod3).not.to.equal(lastMod2);
+
+      assert.isTrue(txns.isUndoPossible);
+
+      // test restarting the session, which should truncate undo history
+      txns.restartSession();
+
+      assert.isFalse(txns.isUndoPossible);
+      assert.equal("", txns.getUndoString());
+
+      assert.isFalse(txns.isRedoPossible);
+      assert.isFalse(txns.hasUnsavedChanges);
+      assert.isTrue(txns.hasPendingTxns); // these are from the previous session
+      cleanup.forEach((drop) => drop());
+    });
+  });
+
+  class EventAccumulator {
+    public readonly inserted: EntityIdAndClassId[] = [];
+    public readonly updated: EntityIdAndClassId[] = [];
+    public readonly deleted: EntityIdAndClassId[] = [];
+    public numValidates = 0;
+    public numApplyChanges = 0;
+    private _numBeforeUndo = 0;
+    private _numAfterUndo = 0;
+    private readonly _cleanup: Array<() => void> = [];
+
+    public constructor(mgr: TxnManager) {
+      this._cleanup.push(mgr.onEndValidation.addListener(() => {
+        ++this.numValidates;
+      }));
+
+      this._cleanup.push(mgr.onCommit.addListener(() => {
+        this.clearChanges();
+      }));
+
+      this._cleanup.push(mgr.onChangesApplied.addListener(() => {
+        ++this.numApplyChanges;
+      }));
+
+      this._cleanup.push(mgr.onBeforeUndoRedo.addListener(() => {
+        expect(this._numBeforeUndo).to.equal(this._numAfterUndo);
+        ++this._numBeforeUndo;
+      }));
+
+      this._cleanup.push(mgr.onAfterUndoRedo.addListener(() => {
+        ++this._numAfterUndo;
+        expect(this._numAfterUndo).to.equal(this._numBeforeUndo);
+      }));
+    }
+
+    public [Symbol.dispose](): void {
+      for (const cleanup of this._cleanup)
+        cleanup();
+
+      this._cleanup.length = 0;
+    }
+
+    public static test(txns: TxnManager, event: BeEvent<(changes: TxnChangedEntities) => void>, func: (accum: EventAccumulator) => void): void {
+      using accum = new EventAccumulator(txns);
+      accum.listen(event);
+      func(accum);
+    }
+
+    public static testElements(iVault: StandaloneDb, func: (accum: EventAccumulator) => void): void {
+      this.test(iVault.txns, iVault.txns.onElementsChanged, func);
+    }
+
+    public static testModels(iVault: StandaloneDb, func: (accum: EventAccumulator) => void): void {
+      this.test(iVault.txns, iVault.txns.onModelsChanged, func);
+    }
+
+    public listen(evt: BeEvent<(changes: TxnChangedEntities) => void>): void {
+      this._cleanup.push(evt.addListener((changes) => {
+        this.copyArray(changes, "inserted");
+        this.copyArray(changes, "updated");
+        this.copyArray(changes, "deleted");
+      }));
+    }
+
+    private copyArray(changes: TxnChangedEntities, propName: "inserted" | "updated" | "deleted"): void {
+      const iterNames = { inserted: "inserts", updated: "updates", deleted: "deletes" } as const;
+      const iterName = iterNames[propName];
+      const entities = changes[iterName];
+
+      const dest = this[propName];
+      for (const entity of entities)
+        dest.push({ ...entity });
+    }
+
+    public expectNumValidations(expected: number) {
+      expect(this.numValidates).to.equal(expected);
+    }
+
+    public expectNumApplyChanges(expected: number) {
+      expect(this.numApplyChanges).to.equal(expected);
+    }
+
+    public expectNumUndoRedo(expected: number) {
+      expect(this._numBeforeUndo).to.equal(this._numAfterUndo);
+      expect(this._numBeforeUndo).to.equal(expected);
+    }
+
+    public expectChanges(expected: { inserted?: EntityIdAndClassId[], updated?: EntityIdAndClassId[], deleted?: EntityIdAndClassId[] }): void {
+      this.expect(expected.inserted, "inserted");
+      this.expect(expected.updated, "updated");
+      this.expect(expected.deleted, "deleted");
+    }
+
+    private expect(expected: EntityIdAndClassId[] | undefined, propName: "inserted" | "updated" | "deleted"): void {
+      expect(this[propName]).to.deep.equal(expected ?? []);
+    }
+
+    public clearChanges(): void {
+      this.inserted.length = 0;
+      this.updated.length = 0;
+      this.deleted.length = 0;
+    }
+  }
+
+  it("dispatches events when elements change", async () => {
+    const elements = ivault.elements;
+    await withEditTxn(ivault, "elements-events", async (editTxn) => {
+      let id1: string;
+      let id2: string;
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        id1 = editTxn.insertElement(props);
+        id2 = editTxn.insertElement(props);
+        editTxn.saveChanges("2 inserts");
+        accum.expectNumValidations(1);
+        accum.expectChanges({ inserted: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      await BeDuration.wait(10); // we rely on updating the lastMod of the newly inserted element, make sure it will be different
+
+      let elem1: TestPhysicalObject;
+      let elem2: TestPhysicalObject;
+      EventAccumulator.testElements(ivault, (accum) => {
+        elem1 = elements.getElement<TestPhysicalObject>(id1);
+        elem2 = elements.getElement<TestPhysicalObject>(id2);
+        elem1.intProperty = 200;
+        editTxn.updateElement(elem1.toJSON());
+        elem2.intProperty = 200;
+        editTxn.updateElement(elem2.toJSON());
+        editTxn.saveChanges("2 updates");
+        accum.expectNumValidations(1);
+        accum.expectChanges({ updated: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        editTxn.deleteElement(id1);
+        editTxn.deleteElement(id2);
+        editTxn.saveChanges("2 deletes");
+        accum.expectNumValidations(1);
+        accum.expectChanges({ deleted: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      // Undo
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectChanges({ inserted: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+        accum.expectNumApplyChanges(1);
+        accum.expectNumValidations(0);
+      });
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectChanges({ updated: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectChanges({ deleted: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      // Redo
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reinstateTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectChanges({ inserted: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reinstateTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectChanges({ updated: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+      });
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reinstateTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectChanges({ deleted: [physicalObjectEntity(id1), physicalObjectEntity(id2)] });
+        accum.expectNumApplyChanges(1);
+        accum.expectNumValidations(0);
+      });
+
+      // Undo all
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reverseTxns(3);
+        accum.expectNumValidations(0);
+        accum.expectNumUndoRedo(1);
+        accum.expectNumApplyChanges(3);
+
+        // We received 3 separate "elements changed" events - one for each txn - and just concatenated the lists.
+        accum.expectChanges({
+          inserted: [physicalObjectEntity(id1), physicalObjectEntity(id2)],
+          updated: [physicalObjectEntity(id1), physicalObjectEntity(id2)],
+          deleted: [physicalObjectEntity(id1), physicalObjectEntity(id2)],
+        });
+      });
+
+      // Redo all
+      EventAccumulator.testElements(ivault, (accum) => {
+        ivault.txns.reinstateTxn();
+        accum.expectNumValidations(0);
+        accum.expectNumUndoRedo(1);
+        accum.expectNumApplyChanges(3);
+
+        // We received 3 separate "elements changed" events - one for each txn - and just concatenated the lists.
+        accum.expectChanges({
+          inserted: [physicalObjectEntity(id1), physicalObjectEntity(id2)],
+          updated: [physicalObjectEntity(id1), physicalObjectEntity(id2)],
+          deleted: [physicalObjectEntity(id1), physicalObjectEntity(id2)],
+        });
+      });
+
+      EventAccumulator.testElements(ivault, (accum) => {
+        const elemId1 = editTxn.insertElement(props);
+        const catId = insertSpatialCategory(editTxn, IVault.dictionaryId, Guid.createValue(), new SubCategoryAppearance({ color: ColorByName.green }));
+        const elemId2 = editTxn.insertElement(props);
+        editTxn.saveChanges("2 physical elems and 1 spatial category");
+        accum.expectNumValidations(1);
+        accum.expectChanges({
+          inserted: [
+            physicalObjectEntity(elemId1),
+            spatialCategoryEntity(catId),
+            subCategoryEntity(catId),
+            physicalObjectEntity(elemId2),
+          ],
+        });
+      });
+    });
+  });
+
+  it("dispatches events when models change", async () => {
+    await withEditTxn(ivault, "models-events", async (editTxn) => {
+      const existingModelId = props.model;
+
+      let newModelId: string;
+      EventAccumulator.testModels(ivault, (accum) => {
+        newModelId = insertPhysicalModel(editTxn, IVault.rootSubjectId, Guid.createValue());
+        editTxn.saveChanges("1 insert");
+        accum.expectNumValidations(1);
+        accum.expectChanges({ inserted: [physicalModelEntity(newModelId)] });
+      });
+
+      EventAccumulator.testModels(roIvault, (accum) => {
+        roIvault[_nativeDb].restartDefaultTxn();
+        accum.expectChanges({ inserted: [physicalModelEntity(newModelId)] });
+      });
+
+      await BeDuration.wait(10); // we rely on updating the lastMod of the newly inserted element, make sure it will be different
+
+      // NB: Updates to existing models never produce events. I don't think I want to change that as part of this PR.
+      let newModel: PhysicalModel;
+      EventAccumulator.testModels(ivault, (accum) => {
+        newModel = ivault.models.getModel<PhysicalModel>(newModelId);
+        const newModelProps = newModel.toJSON();
+        newModelProps.isNotSpatiallyLocated = newModel.isSpatiallyLocated;
+        editTxn.updateModel(newModelProps);
+        editTxn.updateGeometryGuid(existingModelId);
+        editTxn.saveChanges("1 update");
+        accum.expectNumValidations(1);
+        accum.expectChanges({});
+      });
+
+      EventAccumulator.testModels(ivault, (accum) => {
+        editTxn.insertElement(props);
+        editTxn.saveChanges("insert 1 geometric element");
+        accum.expectNumValidations(1);
+        accum.expectChanges({});
+      });
+
+      EventAccumulator.testModels(ivault, (accum) => {
+        editTxn.deleteModel(newModelId);
+        editTxn.saveChanges("1 delete");
+        accum.expectNumValidations(1);
+        accum.expectChanges({ deleted: [physicalModelEntity(newModelId)] });
+
+        accum.expectNumApplyChanges(0);
+      });
+
+      EventAccumulator.testModels(roIvault, (accum) => {
+        roIvault[_nativeDb].restartDefaultTxn();
+        accum.expectChanges({ deleted: [physicalModelEntity(newModelId)] });
+      });
+
+      // Undo
+      EventAccumulator.testModels(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectNumApplyChanges(1);
+        accum.expectChanges({ inserted: [physicalModelEntity(newModelId)] });
+      });
+
+      EventAccumulator.testModels(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectNumApplyChanges(1);
+        accum.expectChanges({});
+      });
+
+      EventAccumulator.testModels(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectNumApplyChanges(1);
+        accum.expectChanges({});
+      });
+
+      EventAccumulator.testModels(ivault, (accum) => {
+        ivault.txns.reverseSingleTxn();
+        accum.expectNumUndoRedo(1);
+        accum.expectNumApplyChanges(1);
+        accum.expectChanges({ deleted: [physicalModelEntity(newModelId)] });
+      });
+
+      // Redo
+      EventAccumulator.testModels(ivault, (accum) => {
+        for (let i = 0; i < 4; i++)
+          ivault.txns.reinstateTxn();
+
+        accum.expectNumUndoRedo(4);
+        accum.expectNumApplyChanges(4);
+        accum.expectChanges({ inserted: [physicalModelEntity(newModelId)], deleted: [physicalModelEntity(newModelId)] });
+      });
+    });
+  });
+
+  it("dispatches events when geometry guids change", () => {
+    withEditTxn(ivault, "geometry-guid-events", (editTxn) => {
+      const modelId = props.model;
+      const test = (func: (model: PhysicalModel) => boolean) => {
+        const model = ivault.models.getModel<PhysicalModel>(modelId);
+        const prevGuid = model.geometryGuid;
+        let newGuid: string | undefined;
+        let numEvents = 0;
+        let dropListener = ivault.txns.onModelGeometryChanged.addListener((changes) => {
+          expect(numEvents).to.equal(0);
+          ++numEvents;
+          expect(changes.length).to.equal(1);
+          expect(changes[0].id).to.equal(modelId);
+          newGuid = changes[0].guid;
+          expect(newGuid).not.to.equal(prevGuid);
+        });
+
+        const expectEvent = func(model);
+
+        editTxn.saveChanges("");
+        expect(numEvents).to.equal(expectEvent ? 1 : 0);
+
+        dropListener();
+        if (!expectEvent)
+          return;
+
+        dropListener = ivault.txns.onModelGeometryChanged.addListener((changes) => {
+          ++numEvents;
+          expect(changes.length).to.equal(1);
+          expect(changes[0].id).to.equal(modelId);
+          expect(changes[0].guid).to.equal(prevGuid);
+        });
+
+        ivault.txns.reverseSingleTxn();
+        expect(numEvents).to.equal(2);
+        dropListener();
+
+        dropListener = ivault.txns.onModelGeometryChanged.addListener((changes) => {
+          ++numEvents;
+          expect(changes.length).to.equal(1);
+          expect(changes[0].id).to.equal(modelId);
+          expect(changes[0].guid).to.equal(newGuid);
+        });
+
+        ivault.txns.reinstateTxn();
+        expect(numEvents).to.equal(3);
+        dropListener();
+      };
+
+      test(() => {
+        editTxn.updateGeometryGuid(modelId);
+        return true;
+      });
+
+      test((model) => {
+        const modelProps = model.toJSON();
+        modelProps.geometryGuid = Guid.createValue();
+        editTxn.updateModel(modelProps);
+        return false;
+      });
+
+      let newElemId: string;
+      test(() => {
+        newElemId = editTxn.insertElement(props);
+        return true;
+      });
+
+      test(() => {
+        const elem = ivault.elements.getElement<TestPhysicalObject>(newElemId);
+        elem.userLabel = "not a geometric change";
+        elem.intProperty = 42;
+        editTxn.updateElement(elem.toJSON());
+        return false;
+      });
+
+      test(() => {
+        const elem = ivault.elements.getElement<TestPhysicalObject>(newElemId);
+        elem.placement.origin.x += 10;
+        editTxn.updateElement(elem.toJSON());
+        return true;
+      });
+
+      test(() => {
+        editTxn.deleteElement(newElemId);
+        return true;
+      });
+
+      editTxn.saveChanges();
+
+      // now test that all the changes we just made are seen by the readonly connection when we call `restartDefaultTxn`
+      let numRoEvents = 0;
+      const guid1 = ivault.models.getModel<PhysicalModel>(modelId).geometryGuid;
+
+      const dropper = roIvault.txns.onModelGeometryChanged.addListener((changes) => {
+        ++numRoEvents;
+        expect(changes.length).to.equal(1);
+        expect(changes[0].id).to.equal(modelId);
+        expect(changes[0].guid).to.equal(guid1);
+      });
+      roIvault[_nativeDb].restartDefaultTxn();
+      expect(numRoEvents).equal(4);
+      dropper();
+    });
+  });
+
+  it("dispatches events in batches", async () => {
+    await withEditTxn(ivault, "batch-events", async (editTxn) => {
+      function entityCount(entities: EntityIdAndClassIdIterable): number {
+        let count = 0;
+        for (const _entity of entities)
+          ++count;
+
+        return count;
+      }
+
+      const test = (numChangesExpected: number, func: () => void) => {
+        const numChanged: number[] = [];
+        const prevMax = setMaxEntitiesPerEvent(2);
+        const dropListener = ivault.txns.onElementsChanged.addListener((changes) => {
+          const numEntities = entityCount(changes.inserts) + entityCount(changes.updates) + entityCount(changes.deletes);
+          numChanged.push(numEntities);
+          expect(numEntities).least(1);
+          expect(numEntities <= 2).to.be.true;
+        });
+
+        func();
+        editTxn.saveChanges("");
+
+        dropListener();
+        setMaxEntitiesPerEvent(prevMax);
+
+        expect(numChanged.length).to.equal(Math.ceil(numChangesExpected / 2));
+        for (let i = 0; i < numChanged.length - 1; i++)
+          expect(numChanged[i]).to.equal(2);
+
+        if (numChangesExpected > 0)
+          expect(numChanged[numChanged.length - 1]).to.equal(0 === numChangesExpected % 2 ? 2 : 1);
+      };
+
+      let elemId1: string;
+      test(1, () => {
+        elemId1 = editTxn.insertElement(props);
+      });
+
+      let elemId2: string;
+      test(2, () => {
+        elemId2 = editTxn.insertElement(props);
+        editTxn.deleteElement(elemId1);
+      });
+      await BeDuration.wait(10); // we rely on updating the lastMod of the newly inserted element, make sure it will be different
+
+      let elemId3: string;
+      test(3, () => {
+        elemId1 = editTxn.insertElement(props);
+        elemId3 = editTxn.insertElement(props);
+        const elem2 = ivault.elements.getElement<TestPhysicalObject>(elemId2);
+        elem2.intProperty = 321;
+        editTxn.updateElement(elem2.toJSON());
+      });
+
+      test(4, () => {
+        editTxn.deleteElement(elemId1);
+        editTxn.deleteElement(elemId2);
+        editTxn.deleteElement(elemId3);
+        editTxn.insertElement(props);
+      });
+    });
+  });
+
+  it("change propagation should leave txn empty", async () => {
+    await withEditTxn(ivault, "change-propagation", async (editTxn) => {
+      const elements = ivault.elements;
+
+      // Insert elements root, child and dependency between them
+      const rootProps = { ...props, intProperty: 0 };
+      const rootId = editTxn.insertElement(rootProps);
+      const childProps = { ...props, intProperty: 10 };
+      const childId = editTxn.insertElement(childProps);
+      const relationship = TestElementDrivesElement.create<TestElementDrivesElement>(ivault, rootId, childId);
+      relationship.property1 = "Root drives child";
+      editTxn.insertRelationship(relationship.toJSON());
+      editTxn.saveChanges("Inserted root, child element and dependency");
+      await BeDuration.wait(10); // we rely on updating the lastMod of the newly inserted element, make sure it will be different
+
+      // Setup dependency handler to update childElement
+      let handlerCalled = false;
+      const dropListener = TestPhysicalObject.allInputsHandled.addListener((arg) => {
+        handlerCalled = true;
+        assert.equal(arg.elId, childId);
+        const childEl = elements.getElement<TestPhysicalObject>(childId);
+        assert.equal(childEl.intProperty, 10, "int property should be 10");
+        childEl.intProperty += 10;
+        editTxn.updateElement(childEl.toJSON());
+      });
+
+      // Validate state
+      const txns = ivault.txns;
+      assert.isFalse(txns.hasUnsavedChanges);
+      assert.isTrue(txns.hasPendingTxns);
+      assert.isTrue(txns.hasLocalChanges);
+
+      // Update rootElement and saveChanges
+      const rootEl = elements.getElement<TestPhysicalObject>(rootId);
+      rootEl.intProperty += 10;
+      editTxn.updateElement(rootEl.toJSON());
+      editTxn.saveChanges("Updated root");
+
+      // Validate state
+      assert.isTrue(handlerCalled);
+      assert.isFalse(txns.hasUnsavedChanges, "should not have unsaved changes");
+      assert.isTrue(txns.hasPendingTxns);
+      assert.isTrue(txns.hasLocalChanges);
+
+      // Cleanup
+      dropListener();
+    });
+  });
+
+  // This bug occurred in one of the authoring apps. This test reproduced the problem, and now serves as a regression test.
+  it("doesn't crash when reversing a single txn that inserts a model and a contained element while geometric model tracking is enabled", () => {
+    withEditTxn(ivault, "reverse-single-txn", (editTxn) => {
+      ivault[_nativeDb].setGeometricModelTrackingEnabled(true);
+
+      const model = PhysicalModel.insert(editTxn, IVault.rootSubjectId, Guid.createValue());
+      expect(Id64.isValidId64(model)).to.be.true;
+      const elem = editTxn.insertElement({ ...props, model });
+      expect(Id64.isValidId64(elem)).to.be.true;
+
+      editTxn.saveChanges("insert model and element");
+      ivault.txns.reverseSingleTxn();
+
+      ivault[_nativeDb].setGeometricModelTrackingEnabled(false);
+    });
+  });
+  it("get local changes", async () => {
+    await withEditTxn(ivault, "local-changes", async (editTxn) => {
+      const txns = ivault.txns;
+
+      const el1 = editTxn.insertElement(props);
+      editTxn.insertElement(props);
+
+      // Should not return any changes
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: false })), []);
+
+      // Should return change that are not saved yet
+      const e0: ChangeInstanceKey[] = [
+        {
+          changeType: "inserted",
+          classFullName: "TestBim:TestPhysicalObject",
+          id: "0x40",
+        },
+        {
+          changeType: "inserted",
+          classFullName: "TestBim:TestPhysicalObject",
+          id: "0x3f",
+        },
+      ];
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: true })), e0);
+
+      // Saved changes cause change propagation
+      editTxn.saveChanges("2 inserts");
+      const e1: ChangeInstanceKey[] = [
+        {
+          changeType: "inserted",
+          classFullName: "TestBim:TestPhysicalObject",
+          id: "0x40",
+        },
+        {
+          changeType: "inserted",
+          classFullName: "TestBim:TestPhysicalObject",
+          id: "0x3f",
+        },
+        {
+          changeType: "updated",
+          classFullName: "BisCore:PhysicalModel",
+          id: "0x3c",
+        },
+      ];
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: false })), e1);
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: true })), e1);
+
+      // delete the element.
+      editTxn.deleteElement(el1);
+
+      // Delete element (0x40) should never show up as it was inserted/deleted locally
+      const e3 = [
+        {
+          changeType: "inserted",
+          classFullName: "TestBim:TestPhysicalObject",
+          id: "0x40",
+        },
+        {
+          changeType: "updated",
+          classFullName: "BisCore:PhysicalModel",
+          id: "0x3c",
+        },
+      ];
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: true })), e3);
+
+      // Saved changes
+      editTxn.saveChanges("1 deleted");
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: false })), e3);
+      assert.deepEqual(Array.from(txns.queryLocalChanges({ includeUnsavedChanges: true })), e3);
+    });
+  });
+
+  describe("deleteAllTxns", () => {
+    it("deletes pending and/or unsaved changes", () => {
+      expect(ivault.txns.hasLocalChanges).to.be.false;
+      expect(ivault.txns.hasPendingTxns).to.be.false;
+      expect(ivault.txns.hasUnsavedChanges).to.be.false;
+
+      withEditTxn(ivault, (txn) => {
+        txn.insertElement(props);
+        expect(ivault.txns.hasLocalChanges).to.be.true;
+        expect(ivault.txns.hasPendingTxns).to.be.false;
+        expect(ivault.txns.hasUnsavedChanges).to.be.true;
+      });
+
+      ivault[_nativeDb].deleteAllTxns();
+      expect(ivault.txns.hasLocalChanges).to.be.false;
+
+      withEditTxn(ivault, (txn) => {
+        txn.insertElement(props);
+      });
+      expect(ivault.txns.hasLocalChanges).to.be.true;
+      expect(ivault.txns.hasPendingTxns).to.be.true;
+      expect(ivault.txns.hasUnsavedChanges).to.be.false;
+
+      ivault[_nativeDb].deleteAllTxns();
+      expect(ivault.txns.hasLocalChanges).to.be.false;
+
+      withEditTxn(ivault, (txn) => {
+        txn.insertElement(props);
+        txn.saveChanges();
+        txn.insertElement(props);
+        expect(ivault.txns.hasLocalChanges).to.be.true;
+        expect(ivault.txns.hasPendingTxns).to.be.true;
+        expect(ivault.txns.hasUnsavedChanges).to.be.true;
+
+        ivault[_nativeDb].deleteAllTxns();
+        expect(ivault.txns.hasLocalChanges).to.be.false;
+      });
+    });
+
+    it("discardChanges should revert local changes", async () => {
+      // Insert and save an element
+      const elId = withEditTxn(ivault, (txn) => txn.insertElement(props));
+
+      // Confirm element exists
+      assert.isDefined(ivault.elements.tryGetElement(elId));
+
+      // Discard the local changes
+      await ivault.discardChanges();
+
+      // Close and reopen the briefcase
+      ivault.close();
+      ivault = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+
+      // The element should NOT exist
+      assert.isUndefined(ivault.elements.tryGetElement(elId));
+    });
+
+    it("TxnManager.deleteAllTxns does not revert local changes", () => {
+      // Insert and save an element
+      const elId = withEditTxn(ivault, (txn) => txn.insertElement(props));
+
+      // Confirm element exists
+      assert.isDefined(ivault.elements.tryGetElement(elId));
+
+      // Delete all txns from the TxnsTable
+      ivault[_nativeDb].deleteAllTxns();
+
+      // Close and reopen the briefcase
+      ivault.close();
+      ivault = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+
+      // The element will exist as deleteAllTxns will only clear the txn history, without reverting the changes
+      assert.isDefined(ivault.elements.tryGetElement(elId));
+    });
+
+    it("clears undo/redo history", () => {
+      expect(ivault.txns.isRedoPossible).to.be.false;
+      expect(ivault.txns.isUndoPossible).to.be.false;
+
+      withEditTxn(ivault, (txn) => {
+        txn.insertElement(props);
+      });
+      expect(ivault.txns.isUndoPossible).to.be.true;
+
+      ivault[_nativeDb].deleteAllTxns();
+      expect(ivault.txns.isUndoPossible).to.be.false;
+
+      withEditTxn(ivault, (txn) => {
+        txn.insertElement(props);
+      });
+      ivault.txns.reverseSingleTxn();
+      expect(ivault.txns.isRedoPossible).to.be.true;
+
+      ivault[_nativeDb].deleteAllTxns();
+      expect(ivault.txns.isRedoPossible).to.be.false;
+    });
+  });
+});
+
+describe("RebaseManager", () => {
+  it("dispose clears all event listeners", () => {
+    IVaultTestUtils.registerTestBimSchema();
+    const testFileName = IVaultTestUtils.prepareOutputFile("RebaseManager", `${Guid.createValue()}.bim`);
+    IVaultJsFs.copySync(IVaultTestUtils.resolveAssetFile("test.dtw"), testFileName);
+    const db = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+    const rebaser = db.txns.rebaser;
+
+    const listener = () => {};
+    const events: Array<keyof typeof rebaser> = [
+      "onPullMergeBegin",
+      "onRebaseBegin",
+      "onRebaseTxnBegin",
+      "onRebaseTxnEnd",
+      "onRebaseEnd",
+      "onPullMergeEnd",
+      "onApplyIncomingChangesBegin",
+      "onApplyIncomingChangesEnd",
+      "onReverseLocalChangesBegin",
+      "onReverseLocalChangesEnd",
+      "onDownloadChangesetsBegin",
+      "onDownloadChangesetsEnd",
+    ];
+
+    for (const name of events)
+      (rebaser[name] as BeEvent<any>).addListener(listener);
+
+    for (const name of events)
+      expect((rebaser[name] as BeEvent<any>).numberOfListeners).to.equal(1, `expected 1 listener on ${String(name)} before dispose`);
+
+    rebaser.dispose();
+
+    for (const name of events)
+      expect((rebaser[name] as BeEvent<any>).numberOfListeners).to.equal(0, `expected 0 listeners on ${String(name)} after dispose`);
+
+    db.close();
+    IVaultJsFs.removeSync(testFileName);
+  });
+
+  it("rebaser.dispose is called when iVault is closed", () => {
+    IVaultTestUtils.registerTestBimSchema();
+    const testFileName = IVaultTestUtils.prepareOutputFile("RebaseManager", `${Guid.createValue()}.bim`);
+    IVaultJsFs.copySync(IVaultTestUtils.resolveAssetFile("test.dtw"), testFileName);
+
+    const db = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+    const rebaser = db.txns.rebaser;
+
+    const listener = () => {};
+    rebaser.onRebaseBegin.addListener(listener);
+    rebaser.onRebaseEnd.addListener(listener);
+    expect(rebaser.onRebaseBegin.numberOfListeners).to.equal(1);
+    expect(rebaser.onRebaseEnd.numberOfListeners).to.equal(1);
+
+    db.close();
+
+    expect(rebaser.onRebaseBegin.numberOfListeners).to.equal(0);
+    expect(rebaser.onRebaseEnd.numberOfListeners).to.equal(0);
+
+    IVaultJsFs.removeSync(testFileName);
+  });
+
+  it("RebaseHandler.dispose is called when RebaseManager is disposed", () => {
+    IVaultTestUtils.registerTestBimSchema();
+    const testFileName = IVaultTestUtils.prepareOutputFile("RebaseManager", `${Guid.createValue()}.bim`);
+    IVaultJsFs.copySync(IVaultTestUtils.resolveAssetFile("test.dtw"), testFileName);
+
+    const db = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+    const rebaser = db.txns.rebaser;
+
+    let disposeCallCount = 0;
+    const handler: RebaseHandler = {
+      shouldReinstate: (_txn) => true,
+      recompute: async (_txn) => {},
+      dispose: () => { disposeCallCount++; },
+    };
+    rebaser.setCustomHandler(handler);
+
+    expect(disposeCallCount).to.equal(0);
+    rebaser.dispose();
+    expect(disposeCallCount).to.equal(1);
+
+    db.close();
+    IVaultJsFs.removeSync(testFileName);
+  });
+
+  it("dispose is idempotent — subsequent calls are ignored", () => {
+    IVaultTestUtils.registerTestBimSchema();
+    const testFileName = IVaultTestUtils.prepareOutputFile("RebaseManager", `${Guid.createValue()}.bim`);
+    IVaultJsFs.copySync(IVaultTestUtils.resolveAssetFile("test.dtw"), testFileName);
+
+    const db = StandaloneDb.openFile(testFileName, OpenMode.ReadWrite);
+    const rebaser = db.txns.rebaser;
+
+    let disposeCallCount = 0;
+    const handler: RebaseHandler = {
+      shouldReinstate: (_txn) => true,
+      recompute: async (_txn) => {},
+      dispose: () => { disposeCallCount++; },
+    };
+    rebaser.setCustomHandler(handler);
+
+    rebaser.dispose();
+    expect(disposeCallCount).to.equal(1);
+
+    // Second and third calls must be no-ops
+    rebaser.dispose();
+    rebaser.dispose();
+    expect(disposeCallCount).to.equal(1);
+
+    db.close();
+    IVaultJsFs.removeSync(testFileName);
+  });
+});

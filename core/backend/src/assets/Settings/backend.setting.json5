@@ -1,0 +1,22 @@
+{
+  "szewtwin/core/gcs/default/databases": [
+    {
+      "name": "szewtwin/core/gcs/base",
+      "dbName": "base",
+      "version": "^1",
+      "baseUri": "https://geocoord-workspace.szewtwinjs.org",
+      "containerId": "gcs",
+      "isPublic": true,
+      "priority": 10000,
+      "prefetch": true
+    },
+    {
+      "name": "szewtwin/core/gcs/entire-earth",
+      "dbName": "allEarth",
+      "version": "^1",
+      "baseUri": "https://geocoord-workspace.szewtwinjs.org",
+      "containerId": "gcs",
+      "priority": 100
+    }
+  ]
+}

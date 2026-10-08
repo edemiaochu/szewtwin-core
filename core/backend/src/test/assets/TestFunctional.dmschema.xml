@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="TestFunctional" alias="testFunc" version="1.0.0" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1">
+
+    <DMSchemaReference name="BisCore" version="01.00.04" alias="bis"/>
+    <DMSchemaReference name="Functional" version="1.0" alias="func" />
+
+    <DMCustomAttributes>
+        <SchemaHasBehavior xmlns="BisCore.1.0"/>
+    </DMCustomAttributes>
+
+    <DMEntityClass typeName="TestFuncPartition">
+        <BaseClass>bis:InformationPartitionElement</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="TestFuncModel" displayLabel="Test Functional Model">
+        <BaseClass>func:FunctionalModel</BaseClass>
+        <DMProperty propertyName="StringProperty" typeName="string"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Breakdown" displayLabel="Test Functional Breakdown">
+        <BaseClass>func:FunctionalBreakdownElement</BaseClass>
+        <DMProperty propertyName="StringProperty" typeName="string"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Component" displayLabel="Test Functional Component">
+        <BaseClass>func:FunctionalComponentElement</BaseClass>
+        <DMProperty propertyName="DoubleProperty" typeName="double"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Type" displayLabel="Test Functional Type">
+        <BaseClass>func:FunctionalType</BaseClass>
+        <DMProperty propertyName="StringProperty" typeName="string" />
+        <DMProperty propertyName="IntProperty" typeName="int" />
+    </DMEntityClass>
+
+    <DMEntityClass typeName="TestFuncAspect">
+        <BaseClass>bis:ElementUniqueAspect</BaseClass>
+        <DMProperty propertyName="strProp" typeName="string"/>
+    </DMEntityClass>
+
+</DMSchema>

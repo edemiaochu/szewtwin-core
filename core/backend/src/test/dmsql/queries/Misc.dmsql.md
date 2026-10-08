@@ -1,0 +1,1197 @@
+# SubqueryValue
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT (SELECT te.DMInstanceId FROM aps.TestElement te) AS dmId
+```
+
+| className | accessString | generated | index | jsonName | name | extendedType | typeName | type |
+| --------- | ------------ | --------- | ----- | -------- | ---- | ------------ | -------- | ---- |
+|           | dmId         | true      | 0     | dmId     | dmId | Id           | long     | Id   |
+
+| dmId |
+| ---- |
+| 0x14 |
+
+# SubqueryValue in CTE
+
+- dataset: AllProperties.dtw
+
+```sql
+WITH
+  myCTE (dmId) AS (
+    SELECT (SELECT te.DMInstanceId FROM aps.TestElement te) AS dmId
+  )
+SELECT * FROM myCTE
+```
+
+| className | accessString | generated | index | jsonName | name | extendedType | typeName | type |
+| --------- | ------------ | --------- | ----- | -------- | ---- | ------------ | -------- | ---- |
+|           | dmId         | true      | 0     | dmId     | dmId | Id           | long     | Id   |
+
+| dmId |
+| ---- |
+| 0x14 |
+
+# CAST Id to various types
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  te.DMInstanceId,
+  CAST(te.DMInstanceId AS INTEGER) [int],
+  CAST(te.DMInstanceId AS LONG) [long],
+  CAST(te.DMInstanceId AS VARCHAR) [char]
+FROM
+  aps.TestElement te
+LIMIT
+  2
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+|           | int          | true      | 1     | int      | int          | undefined    | int      | Int    | undefined          |
+|           | long         | true      | 2     | long     | long         | undefined    | long     | Int64  | undefined          |
+|           | char         | true      | 3     | char     | char         | undefined    | string   | String | undefined          |
+
+| DMInstanceId | int | long | char |
+| ------------ | --- | ---- | ---- |
+| 0x14         | 20  | 20   | "20" |
+| 0x15         | 21  | 21   | "21" |
+
+# Nested CAST
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  te.DMInstanceId,
+  CAST(CAST(te.DMInstanceId AS VARCHAR) AS LONG) [result]
+FROM
+  aps.TestElement te
+LIMIT
+  2
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type  | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ----- | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id    | DMInstanceId       |
+|           | result       | true      | 1     | result   | result       | undefined    | long     | Int64 | undefined          |
+
+| DMInstanceId | result |
+| ------------ | ------ |
+| 0x14         | 20     |
+| 0x15         | 21     |
+
+# IIF integer value
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT te.DMInstanceId, IIF(te.i < 102, 'Small', 'Big') as [calc] from aps.TestElement te LIMIT 5
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+|           | calc         | true      | 1     | calc     | calc         | undefined    | string   | String | undefined          |
+
+| DMInstanceId | calc  |
+| ------------ | ----- |
+| 0x14         | Small |
+| 0x15         | Small |
+| 0x16         | Big   |
+| 0x17         | Big   |
+| 0x18         | Big   |
+
+# FizzBuzz (nested IIF)
+
+- dataset: AllProperties.dtw
+
+```sql
+WITH RECURSIVE
+  numbers (x) AS (
+     SELECT 1 UNION ALL
+     SELECT x + 1 FROM numbers
+     LIMIT 15
+  )
+SELECT
+  IIF(
+    x % 3 = 0 AND x % 5 = 0, 'FizzBuzz',
+    IIF(x % 3 = 0, 'Fizz',
+      IIF(x % 5 = 0, 'Buzz', CAST(x AS VARCHAR))
+    )
+  ) AS [result]
+FROM
+  numbers
+```
+
+| className | accessString | generated | index | jsonName | name   | extendedType | typeName | type   |
+| --------- | ------------ | --------- | ----- | -------- | ------ | ------------ | -------- | ------ |
+|           | result       | true      | 0     | result   | result | undefined    | string   | String |
+
+| result   |
+| -------- |
+| "1"      |
+| "2"      |
+| Fizz     |
+| "4"      |
+| Buzz     |
+| Fizz     |
+| "7"      |
+| "8"      |
+| Fizz     |
+| Buzz     |
+| "11"     |
+| Fizz     |
+| "13"     |
+| "14"     |
+| FizzBuzz |
+
+# SubqueryTestExp with EXISTS
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  DMInstanceId
+FROM
+  aps.TestElement e
+WHERE
+  EXISTS (
+    SELECT
+      1
+    FROM
+      aps.TestElementAspect a
+    WHERE
+      e.DMInstanceId = a.Element.Id
+  )
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ---- | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id   | DMInstanceId       |
+
+| DMInstanceId |
+| ------------ |
+| 0x14         |
+| 0x16         |
+| 0x18         |
+| 0x1a         |
+| 0x1c         |
+
+# SubqueryTestExp with NOT EXISTS
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  DMInstanceId
+FROM
+  aps.TestElement e
+WHERE
+  NOT EXISTS (
+    SELECT
+      1
+    FROM
+      aps.TestElementAspect a
+    WHERE
+      e.DMInstanceId = a.Element.Id
+  )
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ---- | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id   | DMInstanceId       |
+
+| DMInstanceId |
+| ------------ |
+| 0x15         |
+| 0x17         |
+| 0x19         |
+| 0x1b         |
+| 0x1d         |
+
+# SubqueryTestExp with EXISTS and cte subquery
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  DMInstanceId
+FROM
+  aps.TestElement e
+WHERE
+  EXISTS (
+    WITH
+      cte (a, b) AS (
+        SELECT
+          DMInstanceId,
+          DMClassId
+        FROM
+          aps.TestElementAspect
+        LIMIT
+          1
+      )
+    SELECT
+      *
+    FROM
+      cte
+  )
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ---- | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id   | DMInstanceId       |
+
+| DMInstanceId |
+| ------------ |
+| 0x14         |
+| 0x15         |
+| 0x16         |
+| 0x17         |
+| 0x18         |
+| 0x19         |
+| 0x1a         |
+| 0x1b         |
+| 0x1c         |
+| 0x1d         |
+
+# SubqueryTestExp with NOT EXISTS and cte subquery
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  DMInstanceId
+FROM
+  aps.TestElement e
+WHERE
+  NOT EXISTS (
+    WITH
+      cte (a, b) AS (
+        SELECT
+          DMInstanceId,
+          DMClassId
+        FROM
+          aps.TestElementAspect
+        WHERE
+          DMInstanceId = 0x999
+      )
+    SELECT
+      *
+    FROM
+      cte
+  )
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ---- | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id   | DMInstanceId       |
+
+| DMInstanceId |
+| ------------ |
+| 0x14         |
+| 0x15         |
+| 0x16         |
+| 0x17         |
+| 0x18         |
+| 0x19         |
+| 0x1a         |
+| 0x1b         |
+| 0x1c         |
+| 0x1d         |
+
+# Simple LIMIT and OFFSET test
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT  DMInstanceId FROM  aps.TestElement e LIMIT 5 OFFSET 8
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ---- | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id   | DMInstanceId       |
+
+| DMInstanceId |
+| ------------ |
+| 0x1c         |
+| 0x1d         |
+
+# Testing Type enums in the built-in schemas
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT Type FROM meta.DMClassDef WHERE Name='TestElement'
+```
+
+```json
+{
+  "columns": [
+    {
+      "className": "DMDbMeta:DMClassDef",
+      "accessString": "Type",
+      "generated": false,
+      "index": 0,
+      "jsonName": "type",
+      "name": "Type",
+      "typeName": "DMDbMeta.DMClassType",
+      "type": "Int",
+      "originPropertyName": "Type"
+    }
+  ]
+}
+```
+
+```json
+[
+  {
+    "Type": 0
+  }
+]
+```
+
+# Testing Modifier enums in the built-in schemas
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT Modifier FROM meta.DMClassDef WHERE Name='TestElement'
+```
+
+```json
+{
+  "columns": [
+    {
+      "className": "DMDbMeta:DMClassDef",
+      "accessString": "Modifier",
+      "generated": false,
+      "index": 1,
+      "jsonName": "modifier",
+      "name": "Modifier",
+      "typeName": "DMDbMeta.DMClassModifier",
+      "type": "Int",
+      "originPropertyName": "Modifier"
+    }
+  ]
+}
+```
+
+```json
+[
+  {
+    "Modifier": 0
+  }
+]
+```
+
+# Simple select with LIKE operator and wildcard at the end
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT DMInstanceId, DirectStr FROM aps.TestElement where DirectStr LIKE 'str%' LIMIT 5
+```
+
+| className                 | accessString | generated | index | jsonName  | name         | extendedType | typeName | type   | originPropertyName |
+| ------------------------- | ------------ | --------- | ----- | --------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|                           | DMInstanceId | false     | 0     | id        | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+| AllProperties:TestElement | DirectStr    | false     | 0     | directStr | DirectStr    | undefined    | string   | String | DirectStr          |
+
+| DMInstanceId | DirectStr |
+| ------------ | --------- |
+| 0x14         | str0      |
+| 0x15         | str1      |
+| 0x16         | str2      |
+| 0x17         | str3      |
+| 0x18         | str4      |
+
+# Simple select with LIKE operator and wildcard at the beginning
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT DMInstanceId, DirectStr FROM aps.TestElement where DirectStr LIKE '%tr5'
+```
+
+| className                 | accessString | generated | index | jsonName  | name         | extendedType | typeName | type   | originPropertyName |
+| ------------------------- | ------------ | --------- | ----- | --------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|                           | DMInstanceId | false     | 0     | id        | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+| AllProperties:TestElement | DirectStr    | false     | 0     | directStr | DirectStr    | undefined    | string   | String | DirectStr          |
+
+| DMInstanceId | DirectStr |
+| ------------ | --------- |
+| 0x19         | str5      |
+
+# Simple select with LIKE operator and wildcard in the middle
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT DMInstanceId, DirectStr FROM aps.TestElement where DirectStr LIKE 's%5'
+```
+
+| className                 | accessString | generated | index | jsonName  | name         | extendedType | typeName | type   | originPropertyName |
+| ------------------------- | ------------ | --------- | ----- | --------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|                           | DMInstanceId | false     | 0     | id        | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+| AllProperties:TestElement | DirectStr    | false     | 0     | directStr | DirectStr    | undefined    | string   | String | DirectStr          |
+
+| DMInstanceId | DirectStr |
+| ------------ | --------- |
+| 0x19         | str5      |
+
+# Simple select with LIKE operator and multiple wildcard
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT DMInstanceId, NullProp FROM aps.TestElement where NullProp LIKE 'N%t%u%'
+```
+
+| className                 | accessString | generated | index | jsonName | name         | extendedType | typeName | type   | originPropertyName |
+| ------------------------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|                           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+| AllProperties:TestElement | NullProp     | false     | 1     | nullProp | NullProp     | undefined    | string   | String | NullProp           |
+
+| DMInstanceId | NullProp |
+| ------------ | -------- |
+| 0x15         | NotNull  |
+| 0x17         | NotNull  |
+| 0x19         | NotNull  |
+| 0x1b         | NotNull  |
+| 0x1d         | NotNull  |
+
+# Simple select with LIKE operator underscore wildcard
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT DMInstanceId, DirectStr FROM aps.TestElement where DirectStr LIKE 'str_' LIMIT 10 OFFSET 5
+```
+
+| className                 | accessString | generated | index | jsonName  | name         | extendedType | typeName | type   | originPropertyName |
+| ------------------------- | ------------ | --------- | ----- | --------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|                           | DMInstanceId | false     | 0     | id        | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+| AllProperties:TestElement | DirectStr    | false     | 1     | directStr | DirectStr    | undefined    | string   | String | DirectStr          |
+
+| DMInstanceId | DirectStr |
+| ------------ | --------- |
+| 0x19         | str5      |
+| 0x1a         | str6      |
+| 0x1b         | str7      |
+| 0x1c         | str8      |
+| 0x1d         | str9      |
+
+# Simple select with LIKE operator and combination of wildcards
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT DMInstanceId, DirectStr FROM aps.TestElement where DirectStr LIKE 's_r%'
+```
+
+| className                 | accessString | generated | index | jsonName  | name         | extendedType | typeName | type   | originPropertyName |
+| ------------------------- | ------------ | --------- | ----- | --------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|                           | DMInstanceId | false     | 0     | id        | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+| AllProperties:TestElement | DirectStr    | false     | 1     | directStr | DirectStr    | undefined    | string   | String | DirectStr          |
+
+| DMInstanceId | DirectStr |
+| ------------ | --------- |
+| 0x14         | str0      |
+| 0x15         | str1      |
+| 0x16         | str2      |
+| 0x17         | str3      |
+| 0x18         | str4      |
+| 0x19         | str5      |
+| 0x1a         | str6      |
+| 0x1b         | str7      |
+| 0x1c         | str8      |
+| 0x1d         | str9      |
+
+# Simple select with LIKE operator and new ESCAPE character
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  (
+    SELECT
+      DMInstanceId,
+      CASE
+        WHEN NullProp IS NULL THEN 'Test_1234'
+        ELSE 'TEST'
+      END AS Test_Val
+    FROM
+      aps.TestElement
+  ) e
+WHERE
+  e.Test_Val LIKE 'TEST$_%' ESCAPE '$'
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+|           | Test_Val     | true      | 1     | test_Val | Test_Val     | undefined    | string   | String | undefined          |
+
+| DMInstanceId | Test_Val  |
+| ------------ | --------- |
+| 0x14         | Test_1234 |
+| 0x16         | Test_1234 |
+| 0x18         | Test_1234 |
+| 0x1a         | Test_1234 |
+| 0x1c         | Test_1234 |
+
+# Simple select with LIKE operator and existing character underscore as ESCAPE character
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  (
+    SELECT
+      DMInstanceId,
+      CASE
+        WHEN NullProp IS NULL THEN 'Test_1234'
+        ELSE 'TEST%1234'
+      END AS Test_Val
+    FROM
+      aps.TestElement
+  ) e
+WHERE
+  e.Test_Val LIKE 'TEST_%12%' ESCAPE '_'
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+|           | Test_Val     | true      | 1     | test_Val | Test_Val     | undefined    | string   | String | undefined          |
+
+| DMInstanceId | Test_Val  |
+| ------------ | --------- |
+| 0x15         | TEST%1234 |
+| 0x17         | TEST%1234 |
+| 0x19         | TEST%1234 |
+| 0x1b         | TEST%1234 |
+| 0x1d         | TEST%1234 |
+
+# Simple select with LIKE operator and existing character '%' as ESCAPE character
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  (
+    SELECT
+      DMInstanceId,
+      CASE
+        WHEN NullProp IS NULL THEN 'Test_1234'
+        ELSE 'TEST1234'
+      END AS Test_Val
+    FROM
+      aps.TestElement
+  ) e
+WHERE
+  e.Test_Val LIKE 'TEST%_123_' ESCAPE '%'
+```
+
+| className | accessString | generated | index | jsonName | name         | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------------ | ------------ | -------- | ------ | ------------------ |
+|           | DMInstanceId | false     | 0     | id       | DMInstanceId | Id           | long     | Id     | DMInstanceId       |
+|           | Test_Val     | true      | 1     | test_Val | Test_Val     | undefined    | string   | String | undefined          |
+
+| DMInstanceId | Test_Val  |
+| ------------ | --------- |
+| 0x14         | Test_1234 |
+| 0x16         | Test_1234 |
+| 0x18         | Test_1234 |
+| 0x1a         | Test_1234 |
+| 0x1c         | Test_1234 |
+
+# Trying PRAGMA parse_tree without enabling experimental features
+
+- dataset: AllProperties.dtw
+- errorDuringPrepare: true
+
+```sql
+pragma parse_tree([select x from (with tmp(x) as (SELECT e.i FROM aps.TestElement e order by e.i LIMIT 1) select x from tmp) a])
+```
+
+# Trying PRAGMA integrity_check without enabling experimental features
+
+- dataset: AllProperties.dtw
+- errorDuringPrepare: true
+
+```sql
+PRAGMA integrity_check
+```
+
+# Trying PRAGMA parse_tree with enabling experimental features
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA parse_tree (
+  [select x from (with tmp(x) as (SELECT e.i FROM aps.TestElement e order by e.i LIMIT 1) select x from tmp) a]
+) OPTIONS ENABLE_EXPERIMENTAL_FEATURES
+```
+
+```json
+{
+  "columns": [
+    {
+      "className": "",
+      "accessString": "val",
+      "generated": true,
+      "index": 0,
+      "jsonName": "val",
+      "name": "val",
+      "typeName": "string",
+      "type": "String",
+      "originPropertyName": "val"
+    }
+  ]
+}
+```
+
+```json
+[
+  {
+    "val": "{\"id\":\"SelectStatementExp\",\"select\":{\"id\":\"SingleSelectStatementExp\",\"selection\":[{\"id\":\"DerivedPropertyExp\",\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"x\"}}],\"from\":[{\"id\":\"SubqueryRefExp\",\"alias\":\"a\",\"query\":{\"id\":\"SubqueryExp\",\"query\":{\"id\":\"CommonTableExp\",\"recursive\":false,\"blocks\":[{\"id\":\"CommonTableBlockExp\",\"name\":\"tmp\",\"args\":[\"x\"],\"asQuery\":{\"id\":\"SelectStatementExp\",\"select\":{\"id\":\"SingleSelectStatementExp\",\"selection\":[{\"id\":\"DerivedPropertyExp\",\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"e.i\"}}],\"from\":[{\"id\":\"ClassNameExp\",\"tableSpace\":\"\",\"schemaName\":\"AllProperties\",\"className\":\"TestElement\",\"alias\":\"e\"}],\"orderBy\":[{\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"e.i\"}}],\"limit\":{\"id\":\"LimitOffsetExp\",\"exp\":{\"id\":\"LiteralValueExp\",\"kind\":\"RAW\",\"value\":\"1\"}}}}}],\"select\":{\"id\":\"SelectStatementExp\",\"select\":{\"id\":\"SingleSelectStatementExp\",\"selection\":[{\"id\":\"DerivedPropertyExp\",\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"x\"},\"alias\":\"x\"}],\"from\":[{\"id\":\"CommonTableBlockNameExp\",\"name\":\"tmp\"}]}}}}}]}}"
+  }
+]
+```
+
+# Trying PRAGMA parse_tree with enabling experimental features but using DMSQLOPTIONS instead of OPTIONS
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA parse_tree (
+  [select x from (with tmp(x) as (SELECT e.i FROM aps.TestElement e order by e.i LIMIT 1) select x from tmp) a]
+) DMSQLOPTIONS ENABLE_EXPERIMENTAL_FEATURES
+```
+
+```json
+{
+  "columns": [
+    {
+      "className": "",
+      "accessString": "val",
+      "generated": true,
+      "index": 0,
+      "jsonName": "val",
+      "name": "val",
+      "typeName": "string",
+      "type": "String",
+      "originPropertyName": "val"
+    }
+  ]
+}
+```
+
+```json
+[
+  {
+    "val": "{\"id\":\"SelectStatementExp\",\"select\":{\"id\":\"SingleSelectStatementExp\",\"selection\":[{\"id\":\"DerivedPropertyExp\",\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"x\"}}],\"from\":[{\"id\":\"SubqueryRefExp\",\"alias\":\"a\",\"query\":{\"id\":\"SubqueryExp\",\"query\":{\"id\":\"CommonTableExp\",\"recursive\":false,\"blocks\":[{\"id\":\"CommonTableBlockExp\",\"name\":\"tmp\",\"args\":[\"x\"],\"asQuery\":{\"id\":\"SelectStatementExp\",\"select\":{\"id\":\"SingleSelectStatementExp\",\"selection\":[{\"id\":\"DerivedPropertyExp\",\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"e.i\"}}],\"from\":[{\"id\":\"ClassNameExp\",\"tableSpace\":\"\",\"schemaName\":\"AllProperties\",\"className\":\"TestElement\",\"alias\":\"e\"}],\"orderBy\":[{\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"e.i\"}}],\"limit\":{\"id\":\"LimitOffsetExp\",\"exp\":{\"id\":\"LiteralValueExp\",\"kind\":\"RAW\",\"value\":\"1\"}}}}}],\"select\":{\"id\":\"SelectStatementExp\",\"select\":{\"id\":\"SingleSelectStatementExp\",\"selection\":[{\"id\":\"DerivedPropertyExp\",\"exp\":{\"id\":\"PropertyNameExp\",\"path\":\"x\"},\"alias\":\"x\"}],\"from\":[{\"id\":\"CommonTableBlockNameExp\",\"name\":\"tmp\"}]}}}}}]}}"
+  }
+]
+```
+
+# Trying PRAGMA dmdb_ver
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA dmdb_ver
+```
+
+| className | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+|           | current      | true      | 0     | current  | current | undefined    | string   | String | current            |
+|           | file         | true      | 1     | file     | file    | undefined    | string   | String | file               |
+
+| current | file    |
+| ------- | ------- |
+| 4.0.0.5 | 4.0.0.5 |
+
+# Trying PRAGMA dmsql_ver
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA dmsql_ver
+```
+
+
+| dmsql_ver |
+| --------- |
+| 2.0.3.1   |
+
+# Trying PRAGMA sqlite_sql with a simple select
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA sqlite_sql([SELECT * FROM meta.DMClassDef WHERE Name='Element'])
+```
+
+| sqlite_sql |
+| ---------- |
+| SELECT [DMClassDef].[DMInstanceId],[DMClassDef].[DMClassId],[DMClassDef].[SchemaId],[DMClassDef].[SchemaRelDMClassId],[DMClassDef].[Name],[DMClassDef].[DisplayLabel],[DMClassDef].[Description],[DMClassDef].[Type],[DMClassDef].[Modifier],[DMClassDef].[CustomAttributeContainerType],[DMClassDef].[RelationshipStrength],[DMClassDef].[RelationshipStrengthDirection] FROM (SELECT [Id] DMInstanceId,37 DMClassId,[SchemaId],(CASE WHEN [SchemaId] IS NULL THEN NULL ELSE 38 END) [SchemaRelDMClassId],[Name],[DisplayLabel],[Description],[Type],[Modifier],[CustomAttributeContainerType],[RelationshipStrength],[RelationshipStrengthDirection] FROM [main].[dm_Class]) [DMClassDef] WHERE [DMClassDef].[Name]='Element' |
+
+# Trying PRAGMA sqlite_sql with a parameterized sql
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA sqlite_sql([SELECT * FROM meta.DMClassDef WHERE Name=?])
+```
+
+| sqlite_sql |
+| ---------- |
+| SELECT [DMClassDef].[DMInstanceId],[DMClassDef].[DMClassId],[DMClassDef].[SchemaId],[DMClassDef].[SchemaRelDMClassId],[DMClassDef].[Name],[DMClassDef].[DisplayLabel],[DMClassDef].[Description],[DMClassDef].[Type],[DMClassDef].[Modifier],[DMClassDef].[CustomAttributeContainerType],[DMClassDef].[RelationshipStrength],[DMClassDef].[RelationshipStrengthDirection] FROM (SELECT [Id] DMInstanceId,37 DMClassId,[SchemaId],(CASE WHEN [SchemaId] IS NULL THEN NULL ELSE 38 END) [SchemaRelDMClassId],[Name],[DisplayLabel],[Description],[Type],[Modifier],[CustomAttributeContainerType],[RelationshipStrength],[RelationshipStrengthDirection] FROM [main].[dm_Class]) [DMClassDef] WHERE [DMClassDef].[Name]=:_dmdb_sqlparam_ix1_col1 |
+
+# Trying PRAGMA sqlite_sql with a complex sql
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA sqlite_sql([SELECT a.Name, b.Name FROM meta.DMClassDef a JOIN meta.DMClassDef b ON a.Name=b.Name])
+```
+
+| sqlite_sql |
+| ---------- |
+|SELECT [a].[Name],[b].[Name] FROM (SELECT [Id] DMInstanceId,37 DMClassId,[Name] FROM [main].[dm_Class]) [a] INNER JOIN (SELECT [Id] DMInstanceId,37 DMClassId,[Name] FROM [main].[dm_Class]) [b] ON [a].[Name]=[b].[Name]|
+
+# Trying PRAGMA sqlite_sql with a cte
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA sqlite_sql([WITH el AS (SELECT DMInstanceId, DMClassId FROM meta.DMClassDef) SELECT * FROM el])
+```
+
+| sqlite_sql |
+| ---------- |
+| WITH el AS (SELECT [DMClassDef].[DMInstanceId] [K0],[DMClassDef].[DMClassId] [K1] FROM (SELECT [Id] DMInstanceId,37 DMClassId FROM [main].[dm_Class]) [DMClassDef])\nSELECT [K0],[K1] FROM el |
+
+# Trying PRAGMA explain_query simple select
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA explain_query (
+  [SELECT * FROM meta.DMClassDef WHERE Name='Element']
+) DMSQLOPTIONS ENABLE_EXPERIMENTAL_FEATURES
+```
+
+| className | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+|           | id           | true      | 0     | id       | id      | undefined    | long     | Int64  | id                 |
+|           | parent       | true      | 1     | parent   | parent  | undefined    | long     | Int64  | parent             |
+|           | notused      | true      | 2     | notused  | notused | undefined    | long     | Int64  | notused            |
+|           | detail       | true      | 3     | detail   | detail  | undefined    | string   | String | detail             |
+
+| detail                                                     |
+| ---------------------------------------------------------- |
+| SEARCH main.dm_Class USING INDEX ix_dm_Class_Name (Name=?) |
+
+# Trying PRAGMA explain_query with cte
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA explain_query (  [WITH    cnt (x,y) AS (      SELECT 100, 200    )  SELECT * from cnt])
+```
+
+| className | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+|           | id           | true      | 0     | id       | id      | undefined    | long     | Int64  | id                 |
+|           | parent       | true      | 1     | parent   | parent  | undefined    | long     | Int64  | parent             |
+|           | notused      | true      | 2     | notused  | notused | undefined    | long     | Int64  | notused            |
+|           | detail       | true      | 3     | detail   | detail  | undefined    | string   | String | detail             |
+
+| detail            |
+| ----------------- |
+| CO-ROUTINE cnt    |
+| SCAN CONSTANT ROW |
+| SCAN cnt          |
+
+# Trying PRAGMA explain_query with recursive cte
+
+- dataset: AllProperties.dtw
+
+```sql
+PRAGMA explain_query (
+  [WITH RECURSIVE
+    cnt (x,y) AS (
+      SELECT 100, 200
+      UNION ALL
+      SELECT x+1, 200 FROM cnt WHERE x<210
+    )
+   SELECT * from cnt]
+)
+```
+
+| className | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+|           | id           | true      | 0     | id       | id      | undefined    | long     | Int64  | id                 |
+|           | parent       | true      | 1     | parent   | parent  | undefined    | long     | Int64  | parent             |
+|           | notused      | true      | 2     | notused  | notused | undefined    | long     | Int64  | notused            |
+|           | detail       | true      | 3     | detail   | detail  | undefined    | string   | String | detail             |
+
+| detail            |
+| ----------------- |
+| CO-ROUTINE cnt    |
+| SETUP             |
+| SCAN CONSTANT ROW |
+| RECURSIVE STEP    |
+| SCAN cnt          |
+| SCAN cnt          |
+
+# Using Scalar values in select clause with + operator
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT (1+2) Added
+```
+
+| className | accessString | generated | index | jsonName | name  | extendedType | typeName | type   |
+| --------- | ------------ | --------- | ----- | -------- | ----- | ------------ | -------- | ------ |
+|           | Added        | true      | 0     | added    | Added | undefined    | double   | Double |
+
+| Added |
+| ----- |
+| 3     |
+
+# Using Scalar values in select clause
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT (1) One
+```
+
+| className | accessString | generated | index | jsonName | name | extendedType | typeName | type  |
+| --------- | ------------ | --------- | ----- | -------- | ---- | ------------ | -------- | ----- |
+|           | One          | true      | 0     | one      | One  | undefined    | long     | Int64 |
+
+| One |
+| --- |
+| 1   |
+
+# Using Scalar values in select clause with \* operator
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT (1*2) Product
+```
+
+| className | accessString | generated | index | jsonName | name    | extendedType | typeName | type   |
+| --------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ |
+|           | Product      | true      | 0     | product  | Product | undefined    | double   | Double |
+
+| Product |
+| ------- |
+| 2       |
+
+# Using Scalar values in select clause with / operator
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT (1*2) Divided
+```
+
+| className | accessString | generated | index | jsonName | name    | extendedType | typeName | type   |
+| --------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ |
+|           | Divided      | true      | 0     | divided  | Divided | undefined    | double   | Double |
+
+| Divided |
+| ------- |
+| 2       |
+
+# NULLCast binary and bool
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  te.i,
+  CAST(NULL AS BINARY) [binary],
+  CAST(NULL AS BOOLEAN) [bool]
+FROM
+  aps.TestElement te
+LIMIT
+  2
+```
+
+| className                | accessString | generated | index | jsonName | name   | extendedType | typeName | type    | originPropertyName |
+| ------------------------ | ------------ | --------- | ----- | -------- | ------ | ------------ | -------- | ------- | ------------------ |
+| AllProperties:IPrimitive | i            | false     | 0     | i        | i      | undefined    | int      | Int     | i                  |
+|                          | binary       | true      | 1     | binary   | binary | undefined    | binary   | Blob    | undefined          |
+|                          | bool         | true      | 2     | bool     | bool   | undefined    | boolean  | Boolean | undefined          |
+
+| i   | binary    | time      |
+| --- | --------- | --------- |
+| 100 | undefined | undefined |
+| 101 | undefined | undefined |
+
+# NullCast double and time
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  te.i,
+  CAST(NULL AS DOUBLE) [dbl],
+  CAST(NULL AS TIMESTAMP) [time]
+FROM
+  aps.TestElement te
+LIMIT
+  2
+```
+
+| className                | accessString | generated | index | jsonName | name | extendedType | typeName | type     | originPropertyName |
+| ------------------------ | ------------ | --------- | ----- | -------- | ---- | ------------ | -------- | -------- | ------------------ |
+| AllProperties:IPrimitive | i            | false     | 0     | i        | i    | undefined    | int      | Int      | i                  |
+|                          | dbl          | true      | 1     | dbl      | dbl  | undefined    | double   | Double   | undefined          |
+|                          | time         | true      | 2     | time     | time | undefined    | dateTime | DateTime | undefined          |
+
+| i   | dbl       | time      |
+| --- | --------- | --------- |
+| 100 | undefined | undefined |
+| 101 | undefined | undefined |
+
+# Testing same name columns and checking both the columns of the results
+
+- dataset: AllProperties.dtw
+- mode: QueryReader
+
+```sql
+SELECT 0,0
+```
+
+| className | accessString | generated | index | jsonName | name  | extendedType | typeName | type  |
+| --------- | ------------ | --------- | ----- | -------- | ----- | ------------ | -------- | ----- |
+|           | "0"          | true      | 0     | "0"      | "0"   | undefined    | long     | Int64 |
+|           | "0_1"        | true      | 1     | "0_1"    | "0_1" | undefined    | long     | Int64 |
+
+| 0   | 0_1 |
+| --- | --- |
+| 0   | 0   |
+
+# Testing same name columns and checking first column of the results
+
+- dataset: AllProperties.dtw
+- mode: QueryReader
+
+```sql
+SELECT 0,0
+```
+
+| className | accessString | generated | index | jsonName | name  | extendedType | typeName | type  |
+| --------- | ------------ | --------- | ----- | -------- | ----- | ------------ | -------- | ----- |
+|           | "0"          | true      | 0     | "0"      | "0"   | undefined    | long     | Int64 |
+|           | "0_1"        | true      | 1     | "0_1"    | "0_1" | undefined    | long     | Int64 |
+
+| 0   |
+| --- |
+| 0   |
+
+# Testing same name columns and checking second column of the results
+
+- dataset: AllProperties.dtw
+- mode: QueryReader
+
+```sql
+SELECT 0,0
+```
+
+| className | accessString | generated | index | jsonName | name  | extendedType | typeName | type  |
+| --------- | ------------ | --------- | ----- | -------- | ----- | ------------ | -------- | ----- |
+|           | "0"          | true      | 0     | "0"      | "0"   | undefined    | long     | Int64 |
+|           | "0_1"        | true      | 1     | "0_1"    | "0_1" | undefined    | long     | Int64 |
+
+| 0_1 |
+| --- |
+| 0   |
+
+# Testing json_tree without schema name
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  json_tree(
+    '{ "planet": "mars", "gravity": "3.721 m/s²", "surface_area": "144800000 km²", "distance_from_sun":"227900000 km", "radius" : "3389.5 km","orbital_period" : "687 days", "moons": ["Phobos", "Deimos"]}'
+  ) s
+WHERE
+  s.key = 'gravity'
+```
+
+| className       | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+| json1:json_tree | key          | false     | 0     | key      | key     | undefined    | string   | String | key                |
+| json1:json_tree | value        | false     | 1     | value    | value   | undefined    | string   | String | value              |
+| json1:json_tree | type         | false     | 2     | type     | type    | undefined    | string   | String | type               |
+| json1:json_tree | atom         | false     | 3     | atom     | atom    | undefined    | string   | String | atom               |
+| json1:json_tree | parent       | false     | 4     | parent   | parent  | undefined    | int      | Int    | parent             |
+| json1:json_tree | fullkey      | false     | 5     | fullkey  | fullkey | undefined    | string   | String | fullkey            |
+| json1:json_tree | path         | false     | 6     | path     | path    | undefined    | string   | String | path               |
+
+| key     | value      | type | atom       | parent | fullkey   | path |
+| ------- | ---------- | ---- | ---------- | ------ | --------- | ---- |
+| gravity | 3.721 m/s² | text | 3.721 m/s² | 0      | $.gravity | $    |
+
+# Testing json_tree with schema name
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  json1.json_tree(
+    '{ "planet": "mars", "gravity": "3.721 m/s²", "surface_area": "144800000 km²", "distance_from_sun":"227900000 km", "radius" : "3389.5 km","orbital_period" : "687 days", "moons": ["Phobos", "Deimos"]}'
+  ) s
+WHERE
+  s.key = 'gravity'
+```
+
+| className       | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+| json1:json_tree | key          | false     | 0     | key      | key     | undefined    | string   | String | key                |
+| json1:json_tree | value        | false     | 1     | value    | value   | undefined    | string   | String | value              |
+| json1:json_tree | type         | false     | 2     | type     | type    | undefined    | string   | String | type               |
+| json1:json_tree | atom         | false     | 3     | atom     | atom    | undefined    | string   | String | atom               |
+| json1:json_tree | parent       | false     | 4     | parent   | parent  | undefined    | int      | Int    | parent             |
+| json1:json_tree | fullkey      | false     | 5     | fullkey  | fullkey | undefined    | string   | String | fullkey            |
+| json1:json_tree | path         | false     | 6     | path     | path    | undefined    | string   | String | path               |
+
+| key     | value      | type | atom       | parent | fullkey   | path |
+| ------- | ---------- | ---- | ---------- | ------ | --------- | ---- |
+| gravity | 3.721 m/s² | text | 3.721 m/s² | 0      | $.gravity | $    |
+
+# Testing json_tree with empty schema name
+
+- dataset: AllProperties.dtw
+- errorDuringPrepare: true
+
+```sql
+SELECT
+  *
+FROM
+  .json_tree(
+    '{ "planet": "mars", "gravity": "3.721 m/s²", "surface_area": "144800000 km²", "distance_from_sun":"227900000 km", "radius" : "3389.5 km","orbital_period" : "687 days", "moons": ["Phobos", "Deimos"]}'
+  ) s
+WHERE
+  s.key = 'gravity'
+```
+
+# Testing json_each without schema name
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  json_each(
+    '{ "planet": "mars", "gravity": "3.721 m/s²", "surface_area": "144800000 km²", "distance_from_sun":"227900000 km", "radius" : "3389.5 km","orbital_period" : "687 days", "moons": ["Phobos", "Deimos"]}'
+  ) s
+WHERE
+  s.key = 'gravity'
+```
+
+| className       | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+| json1:json_each | key          | false     | 0     | key      | key     | undefined    | string   | String | key                |
+| json1:json_each | value        | false     | 1     | value    | value   | undefined    | string   | String | value              |
+| json1:json_each | type         | false     | 2     | type     | type    | undefined    | string   | String | type               |
+| json1:json_each | atom         | false     | 3     | atom     | atom    | undefined    | string   | String | atom               |
+| json1:json_each | parent       | false     | 4     | parent   | parent  | undefined    | int      | Int    | parent             |
+| json1:json_each | fullkey      | false     | 5     | fullkey  | fullkey | undefined    | string   | String | fullkey            |
+| json1:json_each | path         | false     | 6     | path     | path    | undefined    | string   | String | path               |
+
+| key     | value      | type | atom       | fullkey   | path |
+| ------- | ---------- | ---- | ---------- | --------- | ---- |
+| gravity | 3.721 m/s² | text | 3.721 m/s² | $.gravity | $    |
+
+# Testing json_each with schema name
+
+- dataset: AllProperties.dtw
+
+```sql
+SELECT
+  *
+FROM
+  json1.json_each(
+    '{ "planet": "mars", "gravity": "3.721 m/s²", "surface_area": "144800000 km²", "distance_from_sun":"227900000 km", "radius" : "3389.5 km","orbital_period" : "687 days", "moons": ["Phobos", "Deimos"]}'
+  ) s
+WHERE
+  s.key = 'gravity'
+```
+
+| className       | accessString | generated | index | jsonName | name    | extendedType | typeName | type   | originPropertyName |
+| --------------- | ------------ | --------- | ----- | -------- | ------- | ------------ | -------- | ------ | ------------------ |
+| json1:json_each | key          | false     | 0     | key      | key     | undefined    | string   | String | key                |
+| json1:json_each | value        | false     | 1     | value    | value   | undefined    | string   | String | value              |
+| json1:json_each | type         | false     | 2     | type     | type    | undefined    | string   | String | type               |
+| json1:json_each | atom         | false     | 3     | atom     | atom    | undefined    | string   | String | atom               |
+| json1:json_each | parent       | false     | 4     | parent   | parent  | undefined    | int      | Int    | parent             |
+| json1:json_each | fullkey      | false     | 5     | fullkey  | fullkey | undefined    | string   | String | fullkey            |
+| json1:json_each | path         | false     | 6     | path     | path    | undefined    | string   | String | path               |
+
+| key     | value      | type | atom       | fullkey   | path |
+| ------- | ---------- | ---- | ---------- | --------- | ---- |
+| gravity | 3.721 m/s² | text | 3.721 m/s² | $.gravity | $    |
+
+# Testing json_each with schema name as space
+
+- dataset: AllProperties.dtw
+- errorDuringPrepare: true
+
+```sql
+SELECT
+  *
+FROM
+    .json_each(
+    '{ "planet": "mars", "gravity": "3.721 m/s²", "surface_area": "144800000 km²", "distance_from_sun":"227900000 km", "radius" : "3389.5 km","orbital_period" : "687 days", "moons": ["Phobos", "Deimos"]}'
+  ) s
+WHERE
+  s.key = 'gravity'
+```
+
+# Select DMDb schemas from DMDbMeta without schema name
+
+- dataset: AllProperties.dtw
+- errorDuringPrepare: true
+
+```sql
+Select s.Name, s.Alias from DMSchemaDef s WHERE s.Name LIKE 'DMDb%' LIMIT 4;
+```
+
+# Select Test elements from sample dataset without schema name
+
+- dataset: AllProperties.dtw
+- errorDuringPrepare: true
+
+```sql
+SELECT e.DMClassId, e.DirectStr FROM TestElement e WHERE e.DirectLong > 1005 ORDER BY e.DirectLong LIMIT 2
+```

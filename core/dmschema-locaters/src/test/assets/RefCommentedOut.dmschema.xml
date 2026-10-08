@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="RefCommentedOut" alias="a" version="1.1.1" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2" displayLabel="RefCommentedOut" description="This is a test Schema.">
+    <DMSchemaReference name="SchemaC" version="3.3.3" alias="c"/>
+    <!--<DMSchemaReference name="InteropLayerPlaceHolder" version="01.00.00" alias="IL"/>-->
+    <!--<DMSchemaReference name="DoesNotExistOne" version="01.00.00" alias="DNEOne"/>-->
+    <DMSchemaReference name="SchemaD" version="4.4.4" alias="d"/>
+    <!--<DMSchemaReference name="DoesNotExistTwo" version="01.00.00" alias="DNETwo"/>-->
+</DMSchema>

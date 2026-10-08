@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="AllProperties" alias="aps" version="01.00.00"
+  xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="BisCore" version="01.00.16" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.04" alias="CoreCA"/>
+  <DMEntityClass typeName="TestElement" modifier="None">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>IPrimitive</BaseClass>
+    <BaseClass>IPrimitiveArray</BaseClass>
+    <DMProperty propertyName="DirectStr" typeName="string"/>
+    <DMProperty propertyName="DirectLong" typeName="long"/>
+    <DMProperty propertyName="DirectDouble" typeName="double"/>
+    <DMProperty propertyName="NullProp" typeName="string"/>
+    <DMProperty propertyName="EnumIntProp" typeName="TestIntEnum"/>
+    <DMArrayProperty propertyName="EnumIntPropArr" typeName="TestIntEnum"/>
+    <DMProperty propertyName="EnumStringProp" typeName="TestStringEnum"/>
+    <DMArrayProperty propertyName="EnumStringPropArr" typeName="TestStringEnum"/>
+    <DMProperty propertyName="NoCaseString" typeName="string"/>
+  </DMEntityClass>
+  <DMEntityClass typeName="TestFeature">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <DMProperty propertyName="Name" typeName="string" />
+    <DMNavigationProperty propertyName="FeatureUsesElement" relationshipName="TestFeatureUsesElement" direction="Backward"/>
+  </DMEntityClass>
+  <DMRelationshipClass typeName="TestFeatureUsesElement" modifier="Sealed" strength="referencing">
+    <Source multiplicity="(0..1)" roleLabel="A" polymorphic="false">
+      <Class class="TestElement"/>
+    </Source>
+    <Target multiplicity="(0..*)" roleLabel="B" polymorphic="false">
+      <Class class="TestFeature"/>
+    </Target>
+  </DMRelationshipClass>
+  <DMEnumeration typeName="TestIntEnum" backingTypeName="int" isStrict="true">
+    <DMEnumerator value="1" name="One" />
+    <DMEnumerator value="2" name="Two" />
+  </DMEnumeration>
+  <DMEnumeration typeName="TestStringEnum" backingTypeName="string" isStrict="true">
+    <DMEnumerator value="1" name="One" />
+    <DMEnumerator value="2" name="Two" />
+  </DMEnumeration>
+  <DMCustomAttributeClass typeName="TestCAClass" modifier="Sealed" appliesTo="EntityClass">
+    <DMProperty propertyName="TestCAProp" typeName="string" />
+  </DMCustomAttributeClass>
+  <DMEntityClass typeName="TestEntityClass">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <DMCustomAttributes>
+      <TestCAClass>
+        <TestCAProp>TestProp</TestCAProp>
+      </TestCAClass>
+    </DMCustomAttributes>
+  </DMEntityClass>
+  <DMEntityClass typeName="TestElementAspect" modifier="None">
+    <BaseClass>bis:ElementUniqueAspect</BaseClass>
+    <BaseClass>IPrimitiveAspect</BaseClass>
+    <BaseClass>IPrimitiveArrayAspect</BaseClass>
+  </DMEntityClass>
+  <DMRelationshipClass typeName="TestElementRefersToElements" strength="referencing" modifier="Sealed">
+    <BaseClass>bis:ElementRefersToElements</BaseClass>
+    <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="true">
+      <Class class="TestElement"/>
+    </Source>
+    <Target multiplicity="(0..*)" roleLabel="is referenced by" polymorphic="true">
+      <Class class="TestElement"/>
+    </Target>
+    <DMProperty propertyName="i" typeName="int"/>
+    <DMProperty propertyName="l" typeName="long"/>
+    <DMProperty propertyName="d" typeName="double"/>
+    <DMProperty propertyName="b" typeName="boolean"/>
+    <DMProperty propertyName="dt" typeName="dateTime"/>
+    <DMProperty propertyName="s" typeName="string"/>
+    <DMProperty propertyName="j" typeName="string"/>
+    <DMProperty propertyName="bin" typeName="binary"/>
+    <DMProperty propertyName="p2d" typeName="point2d"/>
+    <DMProperty propertyName="p3d" typeName="point3d"/>
+    <DMProperty propertyName="g" typeName="Szewec.Geometry.Common.IGeometry"/>
+    <!--<DMStructProperty propertyName="st" typeName="ComplexStruct"/>-->
+    <DMArrayProperty propertyName="array_i" typeName="int" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_l" typeName="long" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_d" typeName="double" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_b" typeName="boolean" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_dt" typeName="dateTime" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_s" typeName="string" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_bin" typeName="binary" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p2d" typeName="point2d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p3d" typeName="point3d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_g" typeName="Szewec.Geometry.Common.IGeometry" minOccurs="0" maxOccurs="unbounded"/>
+    <!--<DMStructArrayProperty propertyName="array_st" typeName="ComplexStruct" minOccurs="0" maxOccurs="unbounded"/>-->
+  </DMRelationshipClass>
+  <DMEntityClass typeName="IPrimitive" modifier="Abstract">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:PhysicalElement</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+    <DMProperty propertyName="i" typeName="int"/>
+    <DMProperty propertyName="l" typeName="long"/>
+    <DMProperty propertyName="d" typeName="double"/>
+    <DMProperty propertyName="b" typeName="boolean"/>
+    <DMProperty propertyName="dt" typeName="dateTime"/>
+    <DMProperty propertyName="s" typeName="string"/>
+    <DMProperty propertyName="j" typeName="string"/>
+    <DMProperty propertyName="bin" typeName="binary"/>
+    <DMProperty propertyName="p2d" typeName="point2d"/>
+    <DMProperty propertyName="p3d" typeName="point3d"/>
+    <DMProperty propertyName="g" typeName="Szewec.Geometry.Common.IGeometry"/>
+    <DMProperty propertyName="range3d" typeName="binary"/>
+    <DMStructProperty propertyName="st" typeName="ComplexStruct"/>
+  </DMEntityClass>
+  <DMEntityClass typeName="IPrimitiveAspect" modifier="Abstract">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:ElementUniqueAspect</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+    <DMProperty propertyName="i" typeName="int"/>
+    <DMProperty propertyName="l" typeName="long"/>
+    <DMProperty propertyName="d" typeName="double"/>
+    <DMProperty propertyName="b" typeName="boolean"/>
+    <DMProperty propertyName="dt" typeName="dateTime"/>
+    <DMProperty propertyName="s" typeName="string"/>
+    <DMProperty propertyName="j" typeName="string"/>
+    <DMProperty propertyName="bin" typeName="binary"/>
+    <DMProperty propertyName="p2d" typeName="point2d"/>
+    <DMProperty propertyName="p3d" typeName="point3d"/>
+    <DMProperty propertyName="g" typeName="Szewec.Geometry.Common.IGeometry"/>
+    <DMProperty propertyName="range3d" typeName="binary"/>
+    <DMStructProperty propertyName="st" typeName="ComplexStruct"/>
+  </DMEntityClass>
+  <DMEntityClass typeName="IPrimitiveArray" modifier="Abstract">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:PhysicalElement</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+    <DMArrayProperty propertyName="array_i" typeName="int" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_l" typeName="long" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_d" typeName="double" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_b" typeName="boolean" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_dt" typeName="dateTime" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_s" typeName="string" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_bin" typeName="binary" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p2d" typeName="point2d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p3d" typeName="point3d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_g" typeName="Szewec.Geometry.Common.IGeometry" minOccurs="0" maxOccurs="unbounded"/>
+    <DMStructArrayProperty propertyName="array_st" typeName="ComplexStruct" minOccurs="0" maxOccurs="unbounded"/>
+  </DMEntityClass>
+  <DMEntityClass typeName="IPrimitiveArrayAspect" modifier="Abstract">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:ElementUniqueAspect</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+    <DMArrayProperty propertyName="array_i" typeName="int" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_l" typeName="long" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_d" typeName="double" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_b" typeName="boolean" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_dt" typeName="dateTime" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_s" typeName="string" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_bin" typeName="binary" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p2d" typeName="point2d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p3d" typeName="point3d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_g" typeName="Szewec.Geometry.Common.IGeometry" minOccurs="0" maxOccurs="unbounded"/>
+    <DMStructArrayProperty propertyName="array_st" typeName="ComplexStruct" minOccurs="0" maxOccurs="unbounded"/>
+  </DMEntityClass>
+  <DMStructClass typeName="ComplexStruct" modifier="None">
+    <DMProperty propertyName="i" typeName="int"/>
+    <DMProperty propertyName="l" typeName="long"/>
+    <DMProperty propertyName="d" typeName="double"/>
+    <DMProperty propertyName="b" typeName="boolean"/>
+    <DMProperty propertyName="dt" typeName="dateTime"/>
+    <DMProperty propertyName="s" typeName="string"/>
+    <DMProperty propertyName="j" typeName="string"/>
+    <DMProperty propertyName="bin" typeName="binary"/>
+    <DMProperty propertyName="p2d" typeName="point2d"/>
+    <DMProperty propertyName="p3d" typeName="point3d"/>
+    <DMProperty propertyName="g" typeName="Szewec.Geometry.Common.IGeometry"/>
+    <DMProperty propertyName="range3d" typeName="binary"/>
+    <DMArrayProperty propertyName="array_i" typeName="int" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_l" typeName="long" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_d" typeName="double" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_b" typeName="boolean" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_dt" typeName="dateTime" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_s" typeName="string" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_bin" typeName="binary" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p2d" typeName="point2d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_p3d" typeName="point3d" minOccurs="0" maxOccurs="unbounded"/>
+    <DMArrayProperty propertyName="array_g" typeName="Szewec.Geometry.Common.IGeometry" minOccurs="0" maxOccurs="unbounded"/>
+  </DMStructClass>
+</DMSchema>

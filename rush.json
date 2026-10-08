@@ -1,0 +1,319 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush.schema.json",
+  "rushVersion": "5.172.1",
+  "pnpmVersion": "10.33.0",
+  "nodeSupportedVersionRange": "^20.11.0 || ^22.11.0 || ^24.11.0",
+  "projectFolderMinDepth": 2,
+  "projectFolderMaxDepth": 3,
+  "ensureConsistentVersions": true,
+  "approvedPackagesPolicy": {
+    "reviewCategories": [
+      "frontend",
+      "backend",
+      "common",
+      "tools",
+      "edit",
+      "internal",
+      "extensions",
+      "integration-testing"
+    ],
+    "ignoredNpmScopes": [
+      "@types"
+    ]
+  },
+  "gitPolicy": {
+    "allowedEmailRegExps": [
+      "[^@]+@users\\.noreply\\.github\\.com"
+    ],
+    "sampleEmail": "mrexample@users.noreply.github.com"
+  },
+  "repository": {
+    "url": "https://github.com/iTwin/itwinjs-core",
+    "defaultBranch": "master"
+  },
+  "projects": [
+    {
+      "packageName": "@szewtwin/build-tools",
+      "projectFolder": "tools/build",
+      "reviewCategory": "tools",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/core-szewec",
+      "projectFolder": "core/szewec",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/certa",
+      "projectFolder": "tools/certa",
+      "reviewCategory": "tools",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/perf-tools",
+      "projectFolder": "tools/perf-tools",
+      "reviewCategory": "tools",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "internal-tools",
+      "projectFolder": "tools/internal",
+      "reviewCategory": "internal",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@szewtwin/core-geometry",
+      "projectFolder": "core/geometry",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/core-quantity",
+      "projectFolder": "core/quantity",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/dmsql-common",
+      "projectFolder": "core/ecsql/common",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/appui-abstract",
+      "projectFolder": "ui/appui-abstract",
+      "reviewCategory": "frontend",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/webgl-compatibility",
+      "projectFolder": "core/webgl-compatibility",
+      "reviewCategory": "frontend",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/core-orbitgt",
+      "projectFolder": "core/orbitgt",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/core-common",
+      "projectFolder": "core/common",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/dmschema-metadata",
+      "projectFolder": "core/dmschema-metadata",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/dmschema-locaters",
+      "projectFolder": "core/dmschema-locaters",
+      "reviewCategory": "backend",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/core-i18n",
+      "projectFolder": "core/i18n",
+      "reviewCategory": "frontend",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/dmschema-rpcinterface-common",
+      "projectFolder": "core/ecschema-rpc/common",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/presentation-common",
+      "projectFolder": "presentation/common",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/dmschema-editing",
+      "projectFolder": "core/dmschema-editing",
+      "reviewCategory": "backend",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/editor-common",
+      "projectFolder": "editor/common",
+      "reviewCategory": "edit",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/linear-referencing-common",
+      "projectFolder": "domains/linear-referencing/common",
+      "reviewCategory": "common",
+      "versionPolicyName": "prerelease-monorepo-lockStep",
+      "shouldPublish": true
+    },
+    {
+      "packageName": "@szewtwin/core-backend",
+      "projectFolder": "core/backend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/core-frontend",
+      "projectFolder": "core/frontend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/analytical-backend",
+      "projectFolder": "domains/analytical/backend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/core-extension",
+      "projectFolder": "core/extension",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/core-mobile",
+      "projectFolder": "core/mobile",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/core-markup",
+      "projectFolder": "core/markup",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/presentation-frontend",
+      "projectFolder": "presentation/frontend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/core-electron",
+      "projectFolder": "core/electron",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/dmschema-rpcinterface-impl",
+      "projectFolder": "core/ecschema-rpc/impl",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/express-server",
+      "projectFolder": "core/express-server",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/ecschema2ts",
+      "projectFolder": "tools/ecschema2ts",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/editor-backend",
+      "projectFolder": "editor/backend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/editor-frontend",
+      "projectFolder": "editor/frontend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/frontend-devtools",
+      "projectFolder": "core/frontend-devtools",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/frontend-tiles",
+      "projectFolder": "extensions/frontend-tiles",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/hypermodeling-frontend",
+      "projectFolder": "core/hypermodeling",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/linear-referencing-backend",
+      "projectFolder": "domains/linear-referencing/backend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/map-layers-formats",
+      "projectFolder": "extensions/map-layers-formats",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/map-layers-auth",
+      "projectFolder": "extensions/map-layers-auth",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/physical-material-backend",
+      "projectFolder": "domains/physical-material/backend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/presentation-backend",
+      "projectFolder": "presentation/backend",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/workspace-editor",
+      "projectFolder": "utils/workspace-editor",
+      "shouldPublish": true,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "@szewtwin/cesium-renderer",
+      "projectFolder": "extensions/cesium-renderer",
+      "shouldPublish": false,
+      "reviewCategory": "common"
+    },
+    {
+      "packageName": "display-test-app",
+      "projectFolder": "test-apps/display-test-app",
+      "shouldPublish": false,
+      "reviewCategory": "common"
+    }
+  ]
+}

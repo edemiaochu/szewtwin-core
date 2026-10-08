@@ -1,0 +1,90 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="IVaultChange" alias="ivaultchange" version="2.0.0" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="DMDbChange" version="01.00.01" alias="change"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.01" alias="CoreCA"/>
+
+  <DMEntityClass typeName="ChangeSet" modifier="Sealed">
+    <DMCustomAttributes>
+      <DbIndexList xmlns="DMDbMap.02.00.00">
+        <Indexes>
+          <DbIndex>
+            <Name>ix_ivaultchange_ChangeSet_ParentWsgId</Name>
+            <Properties>
+              <string>ParentWsgId</string>
+            </Properties>
+          </DbIndex>
+          <DbIndex>
+            <Name>uix_ivaultchange_ChangeSet_WsgId</Name>
+            <IsUnique>True</IsUnique>
+            <Properties>
+              <string>WsgId</string>
+            </Properties>
+          </DbIndex>
+          <DbIndex>
+            <Name>ix_ivaultchange_ChangeSet_PushDate</Name>
+            <Properties>
+              <string>PushDate</string>
+            </Properties>
+          </DbIndex>
+          <DbIndex>
+            <Name>ix_ivaultchange_ChangeSet_UserCreated</Name>
+            <Properties>
+              <string>UserCreated</string>
+            </Properties>
+          </DbIndex>
+        </Indexes>
+      </DbIndexList>
+    </DMCustomAttributes>
+    <DMNavigationProperty propertyName="Summary" relationshipName="ChangeSummaryIsExtractedFromChangeset" direction="backward">
+        <DMCustomAttributes>
+            <ForeignKeyConstraint xmlns="DMDbMap.02.00.00">
+                <OnDeleteAction>Cascade</OnDeleteAction>
+            </ForeignKeyConstraint>
+        </DMCustomAttributes>
+    </DMNavigationProperty>
+    <DMProperty propertyName="ParentWsgId" typeName="string">
+      <DMCustomAttributes>
+        <PropertyMap xmlns="DMDbMap.02.00.00">
+          <Collation>NoCase</Collation>
+        </PropertyMap>
+      </DMCustomAttributes>
+    </DMProperty>
+    <DMProperty propertyName="WsgId" typeName="string">
+      <DMCustomAttributes>
+        <PropertyMap xmlns="DMDbMap.02.00.00">
+          <Collation>NoCase</Collation>
+        </PropertyMap>
+      </DMCustomAttributes>
+    </DMProperty>
+    <DMProperty propertyName="Description" typeName="string">
+      <DMCustomAttributes>
+        <PropertyMap xmlns="DMDbMap.02.00.00">
+          <Collation>NoCase</Collation>
+        </PropertyMap>
+      </DMCustomAttributes>
+    </DMProperty>
+    <DMProperty propertyName="PushDate" typeName="dateTime">
+      <DMCustomAttributes>
+        <DateTimeInfo xmlns="CoreCustomAttributes.01.00.01">
+          <DateTimeKind>Utc</DateTimeKind>
+        </DateTimeInfo>
+      </DMCustomAttributes>
+    </DMProperty>
+    <DMProperty propertyName="UserCreated" typeName="string">
+      <DMCustomAttributes>
+        <PropertyMap xmlns="DMDbMap.02.00.00">
+          <Collation>NoCase</Collation>
+        </PropertyMap>
+      </DMCustomAttributes>
+    </DMProperty>
+  </DMEntityClass>
+
+  <DMRelationshipClass typeName="ChangeSummaryIsExtractedFromChangeset" modifier="Sealed" strength="embedding">
+    <Source multiplicity="(1..1)" roleLabel="is created from" polymorphic="false">
+      <Class class="change:ChangeSummary"/>
+    </Source>
+    <Target multiplicity="(0..1)" roleLabel="is source of" polymorphic="false">
+      <Class class="ChangeSet"/>
+    </Target>
+  </DMRelationshipClass>
+</DMSchema>

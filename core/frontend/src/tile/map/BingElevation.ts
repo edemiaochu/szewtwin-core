@@ -1,0 +1,143 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+
+/** @packageDocumentation
+ * @module Tiles
+ */
+import { request } from "../../request/Request";
+import { IVaultApp } from "../../IVaultApp";
+import { IVaultConnection } from "../../IVaultConnection";
+import { Cartographic } from "@szewtwin/core-common";
+import { Point3d, Range1d, Range2d } from "@szewtwin/core-geometry";
+
+// cspell:ignore atae qdng uyzv auje sealevel
+
+/** Provides an interface to the [Bing Maps elevation services](https://docs.microsoft.com/en-us/bingmaps/rest-services/elevations/).
+ * Use of these services requires an API key to be supplied via [[MapLayerOptions.BingMaps]] in the [[IVaultAppOptions.mapLayerOptions]]
+ * passed to [[IVaultApp.startup]].
+ * @public
+ * @extensions
+ */
+export class BingElevationProvider {
+  private _heightRangeRequestTemplate: string;
+  private _seaLevelOffsetRequestTemplate: string;
+  private _heightListRequestTemplate: string;
+
+  /** @public */
+  constructor() {
+    let bingKey = "";
+    if (IVaultApp.mapLayerFormatRegistry.configOptions.BingMaps)
+      bingKey = IVaultApp.mapLayerFormatRegistry.configOptions.BingMaps.value;
+
+    this._heightRangeRequestTemplate =
+      "https://dev.virtualearth.net/REST/v1/Elevation/Bounds?bounds={boundingBox}&rows=16&cols=16&heights=ellipsoid&key={BingMapsAPIKey}"
+        .replace("{BingMapsAPIKey}", bingKey);
+    this._seaLevelOffsetRequestTemplate =
+      "https://dev.virtualearth.net/REST/v1/Elevation/SeaLevel?points={points}&key={BingMapsAPIKey}"
+        .replace("{BingMapsAPIKey}", bingKey);
+    this._heightListRequestTemplate =
+      "https://dev.virtualearth.net/REST/v1/Elevation/List?points={points}&heights={heights}&key={BingMapsAPIKey}"
+        .replace("{BingMapsAPIKey}", bingKey);
+  }
+
+  /** Return the height (altitude) at a given cartographic location.
+   * If geodetic is true (the default) then height is returned in the Ellipsoidal WGS84 datum.  If geodetic is false then the sea level height id returned using the Earth Gravitational Model 2008 (EGM2008 2.5’).
+   * @public
+   */
+  public async getHeight(carto: Cartographic, geodetic = true) {
+    if (undefined === carto)
+      return 0.0;
+
+    const requestUrl =
+      this._heightListRequestTemplate
+        .replace("{points}", `${carto.latitudeDegrees},${carto.longitudeDegrees}`)
+        .replace("{heights}", geodetic ? "ellipsoid" : "sealevel");
+
+    try {
+      const tileResponseBody = await request(requestUrl, "json");
+      return tileResponseBody.resourceSets[0].resources[0].elevations[0];
+    } catch {
+      return 0.0;
+    }
+  }
+
+  /** Returns 256 elevations in the specified range - 16 rows and 16 columns.
+   * The elevations are ordered starting with the southwest corner, then proceeding west to east and south to north.
+   * @beta
+   */
+  public async getHeights(range: Range2d): Promise<number[] | undefined> {
+    const boundingBox = `${range.low.y},${range.low.x},${range.high.y},${range.high.x}`;
+    const requestUrl = this._heightRangeRequestTemplate.replace("{boundingBox}", boundingBox);
+
+    try {
+      const tileResponseBody = await request(requestUrl, "json");
+      return tileResponseBody.resourceSets[0].resources[0].elevations;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** @internal */
+  public async getGeodeticToSeaLevelOffset(point: Point3d, iVault: IVaultConnection): Promise<number> {
+    const carto = iVault.spatialToCartographicFromEcef(point);
+    if (carto === undefined)
+      return 0.0;
+
+    const requestUrl = this._seaLevelOffsetRequestTemplate.replace("{points}", `${carto.latitudeDegrees},${carto.longitudeDegrees}`);
+    try {
+      const tileResponseBody = await request(requestUrl, "json");
+      return tileResponseBody.resourceSets[0].resources[0].offsets[0];
+    } catch {
+      return 0.0;
+    }
+  }
+  /** Get the height (altitude) at a given iVault coordinate.  The height is geodetic (WGS84 ellipsoid)
+   * If geodetic is true (the default) then height is returned in the Ellipsoidal WGS84 datum.  If geodetic is false then sea level height is returned using the Earth Gravitational Model 2008 (EGM2008 2.5’).
+   *
+   * @public
+   */
+  public async getHeightValue(point: Point3d, iVault: IVaultConnection, geodetic = true): Promise<number> {
+    return this.getHeight(iVault.spatialToCartographicFromEcef(point), geodetic);
+  }
+
+  /** Get the height (altitude) range for a given iVault project extents. The height values are  geodetic (WGS84 ellipsoid).
+   * @public
+   */
+  public async getHeightRange(iVault: IVaultConnection) {
+    const latLongRange = Range2d.createNull();
+    const range = iVault.projectExtents.clone();
+
+    // Expand for project surroundings.
+    range.expandInPlace(1000);
+    for (const corner of range.corners()) {
+      const carto = iVault.spatialToCartographicFromEcef(corner);
+      latLongRange.extendXY(carto.longitudeDegrees, carto.latitudeDegrees);
+    }
+
+    const heights = await this.getHeights(latLongRange);
+    return heights ? Range1d.createArray(heights) : Range1d.createNull();
+  }
+
+  /** Get the average height (altitude) for a given iVault project extents.  The height values are geodetic (WGS84 ellipsoid).
+   * @public
+   */
+  public async getHeightAverage(iVault: IVaultConnection) {
+    const latLongRange = Range2d.createNull();
+    for (const corner of iVault.projectExtents.corners()) {
+      const carto = iVault.spatialToCartographicFromEcef(corner);
+      latLongRange.extendXY(carto.longitudeDegrees, carto.latitudeDegrees);
+    }
+
+    const heights = await this.getHeights(latLongRange);
+    if (!heights || !heights.length)
+      return 0;
+
+    let total = 0.0;
+    for (const height of heights)
+      total += height;
+
+    return total / heights.length;
+  }
+}

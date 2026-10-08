@@ -1,0 +1,14 @@
+{
+  "$schema": "https://dev.szewec.com/json_schemas/dm/32/dmschema",
+  "alias": "c",
+  "description": "This is a test Schema.",
+  "label": "SchemaC",
+  "name": "SchemaC",
+  "references": [
+    {
+      "name": "SchemaD",
+      "version": "05.00.05"
+    }
+  ],
+  "version": "4.0.4"
+}

@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+
+import { describe, expect, it } from "vitest";
+import { DMName } from "../../DMName";
+import { DMSchemaError } from "../../Exception";
+
+describe("DMName", () => {
+  it("validates", () => {
+    function expectValid(input: string): void {
+      const name = new DMName(input);
+      expect(name.name).toEqual(input);
+    }
+
+    function expectInvalid(input: string): void {
+      expect(() => expectValid(input)).to.throw(DMSchemaError);
+    }
+
+    expectValid("ThisIsAValidName");
+    expectValid("_123");
+    expectValid("___");
+    expectValid("A123");
+
+    expectInvalid("");
+    expectInvalid("1_C");
+    expectInvalid("!ABC");
+    expectInvalid("ABC@");
+  });
+
+  const testcases = [
+    [ "NothingSpecial", "NothingSpecial" ],
+    [ "Nothing1Special2", "Nothing1Special2" ],
+    [ "1_LeadingDigitsDisallowed", "__x0031___LeadingDigitsDisallowed" ],
+    [ "Special!", "Special__x0021__" ],
+    [ "thing@mail.com", "thing__x0040__mail__x002E__com" ],
+    [ "*", "__x002A__" ],
+    [ "9&:", "__x0039____x0026____x003A__" ],
+    [ "__xNotAChar__", "__xNotAChar__" ],
+    [ "__xTTTT__", "__xTTTT__" ],
+    [ "__x####__", "__x__x0023____x0023____x0023____x0023____" ],
+    [ "\u822C\u6A21\u578B", "__x822C____x6A21____x578B__" ],
+  ];
+
+  it("encodes", () => {
+    expect(() => DMName.encode("")).to.throw(DMSchemaError);
+
+    for (const testcase of testcases) {
+      const name = DMName.encode(testcase[0]);
+      expect(name.name).toEqual(testcase[1]);
+    }
+  });
+
+  it("decodes", () => {
+    for (const testcase of testcases) {
+      const name = new DMName(testcase[1]);
+      expect(name.decode()).toEqual(testcase[0]);
+    }
+  });
+});

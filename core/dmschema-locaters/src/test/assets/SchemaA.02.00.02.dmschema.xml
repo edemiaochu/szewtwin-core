@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="SchemaA" alias="a" version="2.0.2" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2" displayLabel="SchemaA" description="This is a test Schema.">
+    <DMSchemaReference name="SchemaC" version="4.0.4" alias="c"/>
+    <DMSchemaReference name="SchemaB" version="3.0.3" alias="b"/>
+</DMSchema>

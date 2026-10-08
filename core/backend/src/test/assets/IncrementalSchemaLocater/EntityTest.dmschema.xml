@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="EntityTest" alias="et" version="01.00.00" displayLabel="Entity Test Schema" description="Schema for testing EntityClasses" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="BisCore" version="01.00.01" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+
+  <DMEntityClass typeName="EntityModifierNone" modifier="None" displayLabel="TestLabel" description="TestDescription">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>ITestMixin</BaseClass>
+    <DMCustomAttributes>
+      <HiddenClass xmlns="CoreCustomAttributes.01.00.03">
+        <Show>false</Show>
+      </HiddenClass>
+      <TestCustomAttribute xmlns="EntityTest.01.00.00"/>
+    </DMCustomAttributes>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="EntityModifierAbstract" modifier="Abstract" displayLabel="TestLabel" description="TestDescription">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>ITestMixin</BaseClass>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="EntityModifierSealed" modifier="Sealed" displayLabel="TestLabel" description="TestDescription">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>ITestMixin</BaseClass>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="ITestMixin" modifier="Abstract">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:PhysicalElement</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+  </DMEntityClass>
+
+  <DMCustomAttributeClass typeName="TestCustomAttribute" appliesTo="EntityClass" modifier="Sealed"/>
+</DMSchema>

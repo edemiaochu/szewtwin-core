@@ -1,0 +1,47 @@
+{
+  "name": "@szewtwin/core-extension",
+  "version": "5.9.1",
+  "description": "szewTwin.js Extension API",
+  "type": "module",
+  "typings": "index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/szewTwin/szewtwinjs-core.git",
+    "directory": "core/extension"
+  },
+  "scripts": {
+    "compile": "",
+    "build": "",
+    "clean": "rimraf -g .rush/temp/package-deps*.json",
+    "cover": "",
+    "docs": "",
+    "lint": "",
+    "lint-deprecation": "",
+    "test": "",
+    "extract-api": "npm run -s generate",
+    "generate": "node ./codeGen/generate-exports.js"
+  },
+  "keywords": [
+    "Szewec",
+    "BIM",
+    "iVault",
+    "szewTwin",
+    "Extension"
+  ],
+  "author": {
+    "name": "Szewec Systems, Inc.",
+    "url": "http://www.szewec.com"
+  },
+  "dependencies": {
+    "@szewtwin/core-frontend": "workspace:*",
+    "@szewtwin/core-common": "workspace:*"
+  },
+  "devDependencies": {
+    "@szewtwin/build-tools": "workspace:*",
+    "@szewtwin/eslint-plugin": "^6.0.0",
+    "eslint": "^9.31.0",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2"
+  }
+}

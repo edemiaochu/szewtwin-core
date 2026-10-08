@@ -1,0 +1,220 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+/** @packageDocumentation
+ * @module NativeApp
+ */
+
+import { GuidString, Id64String, IVaultStatus, LogLevel, OpenMode } from "@szewtwin/core-szewec";
+import { Range3dProps, XYZProps } from "@szewtwin/core-geometry";
+import { OpenBriefcaseProps, OpenCheckpointArgs } from "./BriefcaseTypes";
+import { ChangedEntities } from "./ChangedEntities";
+import { ChangesetIdWithIndex, ChangesetIndex, ChangesetIndexAndId, ChangesetProps } from "./ChangesetProps";
+import { GeographicCRSProps } from "./geometry/CoordinateReferenceSystem";
+import { BriefcaseConnectionProps, EcefLocationProps, IVaultConnectionProps, IVaultRpcProps, RootSubjectProps, SnapshotOpenOptions, StandaloneOpenOptions } from "./IVault";
+import { ModelGeometryChangesProps } from "./ModelGeometryChanges";
+import { ReinstateTxnArgs, ReverseTxnArgs, TxnProps } from "./TxnProps";
+
+/** Options for pulling changes into iVault.
+ * @internal
+ */
+export interface PullChangesOptions {
+  /** Enables progress reporting. */
+  reportProgress?: boolean;
+  /** Interval for reporting progress (in milliseconds). */
+  progressInterval?: number;
+  /** Enables checks for abort. */
+  enableCancellation?: boolean;
+}
+
+/** Get IPC channel name used for reporting progress of pulling changes into iVault.
+ * @internal
+ */
+export const getPullChangesIpcChannel = (iVaultId: string) => `${ipcAppChannels.functions}/pullChanges/${iVaultId}`;
+
+/** Identifies a list of tile content Ids belonging to a single tile tree.
+ * @internal
+ */
+export interface TileTreeContentIds {
+  treeId: string;
+  contentIds: string[];
+}
+
+/** Specifies a [GeometricModel]($backend)'s Id and a Guid identifying the current state of the geometry contained within the model.
+ * @see [TxnManager.onModelGeometryChanged]($backend) and [BriefcaseTxns.onModelGeometryChanged]($frontend).
+ * @public
+ * @extensions
+ */
+export interface ModelIdAndGeometryGuid {
+  /** The model's Id. */
+  id: Id64String;
+  /** A unique identifier for the current state of the model's geometry. If the guid differs between two revisions of the same iVault, it indicates that the geometry differs.
+   * This is primarily an implementation detail used to determine whether [Tile]($frontend)s produced for one revision are compatible with another revision.
+   */
+  guid: GuidString;
+}
+
+/** @internal */
+export const ipcAppChannels = {
+  functions: "szewtwinjs-core/ipc-app",
+  appNotify: "szewtwinjs-core/ipcApp-notify",
+  txns: "szewtwinjs-core/txns",
+  editingScope: "szewtwinjs-core/editing-scope",
+} as const;
+
+/**
+ * Interface implemented by the frontend [NotificationHandler]($common) to be notified of events from IpcApp backend.
+ * @internal
+ */
+export interface IpcAppNotifications {
+  notifyApp: () => void;
+}
+
+/** @internal */
+export interface NotifyEntitiesChangedMetadata {
+  /** Class full name ("Schema:Class") */
+  name: string;
+  /** The indices in [[NotifyEntitiesChangedArgs.meta]] of each of this class's **direct** base classes. */
+  bases: number[];
+}
+
+/** Arguments supplied to [[TxnNotifications.notifyElementsChanged]] and [[TxnNotifications.notifyModelsChanged]].
+ * @internal
+ */
+export interface NotifyEntitiesChangedArgs extends ChangedEntities {
+  /** An array of the same length as [[ChangedEntities.inserted]] (or empty if that array is undefined), containing the index in the [[meta]] array at which the
+   * metadata for each entity's class is located.
+   */
+  insertedMeta: number[];
+  /** See insertedMeta. */
+  updatedMeta: number[];
+  /** See insertedMeta. */
+  deletedMeta: number[];
+
+  /** Metadata describing each unique class of entity in this set of changes, followed by each unique direct or indirect base class of those classes. */
+  meta: NotifyEntitiesChangedMetadata[];
+}
+
+/** Interface implemented by the frontend [NotificationHandler]($common) to be notified of changes to an iVault.
+ * @see [TxnManager]($backend) for the source of these events.
+ * @see [BriefcaseTxns]($frontend) for the frontend implementation.
+ * @internal
+ */
+export interface TxnNotifications {
+  notifyElementsChanged: (changes: NotifyEntitiesChangedArgs) => void;
+  notifyModelsChanged: (changes: NotifyEntitiesChangedArgs) => void;
+  notifyGeometryGuidsChanged: (changes: ModelIdAndGeometryGuid[]) => void;
+  notifyCommit: () => void;
+  notifyCommitted: (hasPendingTxns: boolean, time: number) => void;
+  notifyReplayExternalTxns: () => void;
+  notifyReplayedExternalTxns: () => void;
+  notifyChangesApplied: () => void;
+  notifyBeforeUndoRedo: (isUndo: boolean) => void;
+  notifyAfterUndoRedo: (isUndo: boolean) => void;
+  notifyPulledChanges: (parentChangeSetId: ChangesetIndexAndId) => void;
+  notifyPushedChanges: (parentChangeSetId: ChangesetIndexAndId) => void;
+
+  notifyIVaultNameChanged: (name: string) => void;
+  notifyRootSubjectChanged: (subject: RootSubjectProps) => void;
+  notifyProjectExtentsChanged: (extents: Range3dProps) => void;
+  notifyGlobalOriginChanged: (origin: XYZProps) => void;
+  notifyEcefLocationChanged: (ecef: EcefLocationProps | undefined) => void;
+  notifyGeographicCoordinateSystemChanged: (gcs: GeographicCRSProps | undefined) => void;
+
+  notifyPullMergeBegin: (changeset: ChangesetIdWithIndex) => void;
+  notifyRebaseBegin: (txns: TxnProps[]) => void;
+  notifyRebaseTxnBegin: (txnProps: TxnProps) => void;
+  notifyRebaseTxnEnd: (txnProps: TxnProps) => void;
+  notifyRebaseEnd: (txns: TxnProps[]) => void;
+  notifyPullMergeEnd: (changeset: ChangesetIdWithIndex) => void;
+  notifyDownloadChangesetsBegin: () => void;
+  notifyDownloadChangesetsEnd: () => void;
+  notifyReverseLocalChangesBegin: () => void;
+  notifyReverseLocalChangesEnd: (txns: TxnProps[]) => void;
+  notifyApplyIncomingChangesBegin: (changes: ChangesetProps[]) => void;
+  notifyApplyIncomingChangesEnd: (changes: ChangesetProps[]) => void;
+
+}
+
+/**
+ * Interface registered by the frontend [NotificationHandler]($common) to be notified of changes to an iVault during an [GraphicalEditingScope]($frontend).
+ * @internal
+ */
+export interface EditingScopeNotifications {
+  notifyGeometryChanged: (modelProps: ModelGeometryChangesProps[]) => void;
+}
+
+/**
+ * The methods that may be invoked via Ipc from the frontend of an IpcApp and are implemented on its backend.
+ * @internal
+ */
+export interface IpcAppFunctions {
+  /** Send frontend log to backend.
+   * @param _level Specify log level.
+   * @param _category Specify log category.
+   * @param _message Specify log message.
+   * @param _metaData metaData if any.
+   */
+  log: (_timestamp: number, _level: LogLevel, _category: string, _message: string, _metaData?: any) => Promise<void>;
+
+  /** see BriefcaseConnection.openFile */
+  openBriefcase: (args: OpenBriefcaseProps) => Promise<BriefcaseConnectionProps>;
+  /** see BriefcaseConnection.openStandalone */
+  openCheckpoint: (args: OpenCheckpointArgs) => Promise<IVaultConnectionProps>;
+  /** see BriefcaseConnection.openStandalone */
+  openStandalone: (filePath: string, openMode: OpenMode, opts?: StandaloneOpenOptions) => Promise<IVaultConnectionProps>;
+  /** see SnapshotConnection.openFile */
+  openSnapshot: (filePath: string, opts?: SnapshotOpenOptions) => Promise<IVaultConnectionProps>;
+  /** see BriefcaseConnection.close */
+  closeIVault: (key: string) => Promise<void>;
+  /**
+   * @deprecated in 5.1.9 - will not be removed until after 2027-05-04. Use methods on EditCommand instead.
+   * see BriefcaseConnection.saveChanges
+   */
+  saveChanges: (key: string, description?: string) => Promise<void>;
+  /**
+   * @deprecated in 5.1.9 - will not be removed until after 2027-05-04. Use methods on EditCommand instead.
+   * see BriefcaseConnection.abandonChanges
+   */
+  abandonChanges: (key: string) => Promise<void>;
+  /** see BriefcaseTxns.hasPendingTxns */
+  hasPendingTxns: (key: string) => Promise<boolean>;
+  /** see BriefcaseTxns.isUndoPossible */
+  isUndoPossible: (key: string) => Promise<boolean>;
+  /** see BriefcaseTxns.isRedoPossible */
+  isRedoPossible: (key: string) => Promise<boolean>;
+  /** see BriefcaseTxns.getUndoString */
+  getUndoString: (key: string) => Promise<string>;
+  /** see BriefcaseTxns.getRedoString */
+  getRedoString: (key: string) => Promise<string>;
+
+  /** see BriefcaseConnection.pullChanges */
+  pullChanges: (key: string, toIndex?: ChangesetIndex, options?: PullChangesOptions) => Promise<ChangesetIndexAndId>;
+  /** Cancels pull of changes. */
+  cancelPullChangesRequest: (key: string) => Promise<void>;
+  /** see BriefcaseConnection.pushChanges */
+  pushChanges: (key: string, description: string) => Promise<ChangesetIndexAndId>;
+  /** Cancels currently pending or active generation of tile content.  */
+  cancelTileContentRequests: (tokenProps: IVaultRpcProps, _contentIds: TileTreeContentIds[]) => Promise<void>;
+
+  /** Cancel element graphics requests.
+   * @see [[IVaultTileRpcInterface.requestElementGraphics]].
+   */
+  cancelElementGraphicsRequests: (key: string, _requestIds: string[]) => Promise<void>;
+
+  toggleGraphicalEditingScope: (key: string, _startSession: boolean) => Promise<boolean>;
+  isGraphicalEditingSupported: (key: string) => Promise<boolean>;
+
+  reverseTxns: (key: string, numOperations: number) => Promise<IVaultStatus>;
+  reverseAllTxn: (key: string) => Promise<IVaultStatus>;
+  reinstateTxn: (key: string) => Promise<IVaultStatus>;
+  reverseTxnsAsync: (key: string, numOperations: number, args?: ReverseTxnArgs) => Promise<void>;
+  reverseAllTxnsAsync: (key: string, args?: ReverseTxnArgs) => Promise<void>;
+  reinstateTxnAsync: (key: string, args?: ReinstateTxnArgs) => Promise<void>;
+  restartTxnSession: (key: string) => Promise<void>;
+
+  /** Query the number of concurrent threads supported by the host's IO or CPU thread pool. */
+  queryConcurrency: (pool: "io" | "cpu") => Promise<number>;
+}
+

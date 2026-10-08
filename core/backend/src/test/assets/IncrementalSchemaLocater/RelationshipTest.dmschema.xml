@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="RelationshipTest" alias="rt" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2" displayLabel="Car Test Schema">
+  <DMSchemaReference name="BisCore" version="01.00.01" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+
+  <DMEntityClass typeName="Car" modifier="Abstract">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>IVehicle</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="Bike" modifier="None">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>IVehicle</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="IVehicle" modifier="Abstract">
+    <BaseClass>bis:ISubModeledElement</BaseClass>
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>bis:PhysicalElement</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="Honda" modifier="Sealed">
+    <BaseClass>Car</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="Ford" modifier="Sealed">
+    <BaseClass>Car</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="Chevy" modifier="Sealed">
+    <BaseClass>Car</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="Owner" modifier="Sealed">
+    <BaseClass>bis:PhysicalElement</BaseClass>
+    <BaseClass>IOwner</BaseClass>
+  </DMEntityClass>
+
+  <DMEntityClass typeName="IOwner" modifier="Abstract">
+    <DMCustomAttributes>
+      <IsMixin xmlns="CoreCustomAttributes.01.00.03">
+        <AppliesToEntityClass>Owner</AppliesToEntityClass>
+      </IsMixin>
+    </DMCustomAttributes>
+  </DMEntityClass>
+
+  <DMRelationshipClass typeName="OwnerOwnsVehicles" strength="referencing" modifier="Abstract" displayLabel="VehicleOwnerRelationship" description="Vehicle Owner Relationship">
+    <BaseClass>bis:ElementRefersToElements</BaseClass>
+
+    <DMProperty propertyName="IntProperty" typeName="int"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean"/>
+
+    <DMCustomAttributes>
+      <HiddenClass xmlns="CoreCustomAttributes.01.00.03">
+        <Show>false</Show>
+      </HiddenClass>
+      <TestCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+    </DMCustomAttributes>
+
+    <Source multiplicity="(0..1)" roleLabel="Owner owns vehicles" polymorphic="true" abstractConstraint="IOwner">
+      <Class class="Owner"/>
+      <Class class="IOwner"/>
+      <DMCustomAttributes>
+        <SourceConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Source>
+
+    <Target multiplicity="(0..*)" roleLabel="Vehicle belongs to owner" polymorphic="true">
+      <Class class="IVehicle"/>
+      <DMCustomAttributes>
+        <TargetConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Target>
+  </DMRelationshipClass>
+
+  <DMRelationshipClass typeName="OwnerOwnsCars" strength="referencing" modifier="None" displayLabel="CarOwnerRelationship" description="Car Owner Relationship">
+    <BaseClass>OwnerOwnsVehicles</BaseClass>
+
+    <Source multiplicity="(0..1)" roleLabel="Owner owns cars" polymorphic="false">
+      <Class class='Owner'/>
+      <DMCustomAttributes>
+        <SourceConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Source>
+
+    <Target multiplicity="(0..*)" roleLabel="Car belongs to owner" polymorphic="true">
+      <Class class="Car"/>
+      <DMCustomAttributes>
+        <TargetConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Target>
+  </DMRelationshipClass>
+
+  <DMRelationshipClass typeName="OwnerOwnsAmericanCars" strength="referencing" modifier="Sealed">
+    <BaseClass>OwnerOwnsCars</BaseClass>
+
+    <Source multiplicity="(0..1)" roleLabel="Owner owns cars" polymorphic="true">
+      <Class class="Owner"/>
+      <DMCustomAttributes>
+        <SourceConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Source>
+
+    <Target multiplicity="(0..*)" roleLabel="Car belongs to owner" polymorphic="false" abstractConstraint="Car">
+      <Class class="Ford"/>
+      <Class class="Chevy"/>
+      <DMCustomAttributes>
+        <TargetConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Target>
+  </DMRelationshipClass>
+
+  <DMRelationshipClass typeName="PhysicalModelBreaksDownCarElement" strength="embedding" strengthDirection="Backward" modifier="Sealed" description="Relationship enabling break-down of an Car Element into its constituent components">
+    <BaseClass>bis:ModelModelsElement</BaseClass>
+    <Source multiplicity="(0..1)" polymorphic="false" roleLabel="breaks down">
+      <Class class="bis:PhysicalModel"/>
+      <DMCustomAttributes>
+        <SourceConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Source>
+    <Target multiplicity="(1..1)" polymorphic="false" roleLabel="is broken down by">
+      <Class class="Car"/>
+      <DMCustomAttributes>
+        <TargetConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+        <AnyConstraintCustomAttribute xmlns="RelationshipTest.01.00.00"/>
+      </DMCustomAttributes>
+    </Target>
+
+  </DMRelationshipClass>
+
+  <DMCustomAttributeClass typeName="TestCustomAttribute" appliesTo="RelationshipClass" modifier="Sealed"/>
+  <DMCustomAttributeClass typeName="SourceConstraintCustomAttribute" appliesTo="SourceRelationshipConstraint" modifier="Sealed"/>
+  <DMCustomAttributeClass typeName="TargetConstraintCustomAttribute" appliesTo="TargetRelationshipConstraint" modifier="Sealed"/>
+  <DMCustomAttributeClass typeName="AnyConstraintCustomAttribute" appliesTo="AnyRelationshipConstraint" modifier="Sealed"/>
+</DMSchema>
+

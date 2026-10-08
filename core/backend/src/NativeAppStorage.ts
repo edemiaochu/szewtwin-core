@@ -1,0 +1,222 @@
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
+/** @packageDocumentation
+ * @module NativeApp
+ */
+
+import { join, relative } from "node:path";
+import { DbResult, IVaultStatus } from "@szewtwin/core-szewec";
+import { IVaultError, StorageValue } from "@szewtwin/core-common";
+import { DMDb, DMDbOpenMode } from "./DMDb";
+import { IVaultHost } from "./IVaultHost";
+import { IVaultJsFs } from "./IVaultJsFs";
+import { NativeHost } from "./NativeHost";
+
+// cspell:ignore dmdb
+
+/**
+ * A local file stored in the [[NativeHost.appSettingsCacheDir]] for storing key/value pairs.
+ * @public
+ */
+export class NativeAppStorage {
+  private static readonly _ext = ".settings-db";
+  private static _storages = new Map<string, NativeAppStorage>();
+  private static _init: boolean = false;
+  private constructor(private _dmdb: DMDb, public readonly id: string) { }
+
+  /** Set the value for a key */
+  public setData(key: string, value: StorageValue): void {
+    const rc = this._dmdb.withPreparedSqliteStatement("INSERT INTO app_setting(key,type,val)VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET type=excluded.type,val=excluded.val", (stmt) => {
+      let valType = (value === undefined || value === null) ? "null" : typeof value;
+      if (valType === "object" && (value instanceof Uint8Array))
+        valType = "Uint8Array";
+
+      switch (valType) {
+        case "null":
+        case "number":
+        case "string":
+        case "boolean":
+        case "Uint8Array":
+          break;
+        default:
+          throw new IVaultError(DbResult.BE_SQLITE_ERROR, `Unsupported type ${valType} for value for key='${key}`);
+      }
+
+      stmt.bindValue(1, key);
+      stmt.bindValue(2, valType);
+      stmt.bindValue(3, value);
+      return stmt.step();
+    });
+    if (rc !== DbResult.BE_SQLITE_DONE)
+      throw new IVaultError(rc, "SQLite error");
+
+    this._dmdb.saveChanges();
+  }
+
+  /** Get the value for a key from this Storage. If key is not present or is null, return undefined. */
+  public getData(key: string): StorageValue {
+    return this._dmdb.withPreparedSqliteStatement("SELECT type,val FROM app_setting WHERE key=?", (stmt) => {
+      stmt.bindValue(1, key);
+      if (DbResult.BE_SQLITE_ROW !== stmt.step())
+        return undefined;
+      const valType = stmt.getValueString(0);
+      switch (valType) {
+        case "number":
+          return stmt.getValueDouble(1);
+        case "string":
+          return stmt.getValueString(1);
+        case "boolean":
+          return Boolean(stmt.getValueInteger(1));
+        case "Uint8Array":
+          return stmt.getValueBlob(1);
+        case "null":
+          return undefined;
+      }
+      throw new IVaultError(DbResult.BE_SQLITE_ERROR, `Unsupported type in cache ${valType}`);
+    });
+  }
+
+  /** return the type of the value for a key, or undefined if not present. */
+  public getValueType(key: string): "number" | "string" | "boolean" | "Uint8Array" | "null" | undefined {
+    return this._dmdb.withSqliteStatement("SELECT type FROM app_setting WHERE key=?", (stmt) => {
+      stmt.bindValue(1, key);
+      return stmt.step() === DbResult.BE_SQLITE_ROW ? stmt.getValueString(0) as any : undefined;
+    });
+  }
+
+  /** return `true` if the key is present, but has a null value. */
+  public hasNullValue(key: string): boolean {
+    return this.getValueType(key) === "null";
+  }
+
+  /** Get the value for a key as a string. If it is not present, or not of type string, return undefined */
+  public getString(key: string): string | undefined {
+    const val = this.getData(key);
+    return typeof val === "string" ? val : undefined;
+  }
+
+  /** Get the value for a key as a number. If it is not present, or not of type number, return undefined */
+  public getNumber(key: string): number | undefined {
+    const val = this.getData(key);
+    return typeof val === "number" ? val : undefined;
+  }
+
+  /** Get the value for a key as a boolean. If it is not present, or not of type boolean, return undefined */
+  public getBoolean(key: string): boolean | undefined {
+    const val = this.getData(key);
+    return typeof val === "boolean" ? val : undefined;
+  }
+
+  /** Get the value for a key as a Uint8Array. If it is not present, or not of type Uint8Array, return undefined */
+  public getUint8Array(key: string): Uint8Array | undefined {
+    const val = this.getData(key);
+    return val instanceof Uint8Array ? val : undefined;
+  }
+
+  /** Get all key names in this Storage */
+  public getKeys(): string[] {
+    const keys = new Array<string>();
+    this._dmdb.withPreparedSqliteStatement("SELECT key FROM app_setting", (stmt) => {
+      while (DbResult.BE_SQLITE_ROW === stmt.step()) {
+        keys.push(stmt.getValueString(0));
+      }
+    });
+    return keys;
+  }
+
+  /** Remove a key/value pair from this Storage */
+  public removeData(key: string) {
+    const rc = this._dmdb.withPreparedSqliteStatement("DELETE FROM app_setting WHERE key=?", (stmt) => {
+      stmt.bindValue(1, key);
+      return stmt.step();
+    });
+    if (rc !== DbResult.BE_SQLITE_DONE) {
+      throw new IVaultError(rc, "SQLite error");
+    }
+  }
+
+  /** Remove all key/value pairs */
+  public removeAll() {
+    const rc = this._dmdb.withPreparedSqliteStatement("DELETE FROM app_setting", (stmt) => {
+      return stmt.step();
+    });
+    if (rc !== DbResult.BE_SQLITE_DONE) {
+      throw new IVaultError(rc, "SQLite error");
+    }
+  }
+
+  /** Close this Storage. */
+  public close(deleteFile: boolean = false) {
+    const storageFile = join(NativeHost.appSettingsCacheDir, this.id);
+    this._dmdb.saveChanges();
+    this._dmdb.closeDb();
+    (this._dmdb as any) = undefined;
+    if (deleteFile)
+      IVaultJsFs.removeSync(storageFile);
+    NativeAppStorage._storages.delete(this.id);
+  }
+
+  private static init(dmdb: DMDb): DbResult {
+    return dmdb.withPreparedSqliteStatement("CREATE TABLE app_setting(key PRIMARY KEY,type,val);", (stmt) => {
+      return stmt.step();
+    });
+  }
+
+  /** find and open storage by its name. */
+  public static find(name: string): NativeAppStorage {
+    const storage = this._storages.get(name);
+    if (undefined === storage)
+      throw new IVaultError(IVaultStatus.FileNotFound, `Storage ${name} not open`);
+    return storage;
+  }
+
+  /** Close all opened Storages.
+   * @internal
+   */
+  public static closeAll() {
+    this._storages.forEach((value) => value.close());
+    this._storages.clear();
+  }
+
+  /** @internal */
+  public static getStorageNames(): string[] {
+    return IVaultJsFs.readdirSync(NativeHost.appSettingsCacheDir).filter((name) => name.endsWith(this._ext));
+  }
+
+  /** Open or find a Storage by name. */
+  public static open(name: string): NativeAppStorage {
+    if (!this._init) {
+      IVaultHost.onBeforeShutdown.addOnce(() => this.closeAll());
+      this._init = true;
+    }
+    if (name.includes("\x00"))
+      throw new Error("Storage name contains illegal characters");
+    const fileName = name + this._ext;
+    if (!IVaultJsFs.existsSync(NativeHost.appSettingsCacheDir))
+      IVaultJsFs.recursiveMkDirSync(NativeHost.appSettingsCacheDir);
+
+    const storageFile = join(NativeHost.appSettingsCacheDir, fileName);
+    if (relative(NativeHost.appSettingsCacheDir, storageFile).startsWith(".."))
+      throw new Error("Storage name should not be a path");
+
+    try {
+      return this.find(fileName); // see if it's already open
+    } catch {
+      const dmdb = new DMDb();
+      if (IVaultJsFs.existsSync(storageFile)) {
+        dmdb.openDb(storageFile, DMDbOpenMode.ReadWrite);
+      } else {
+        dmdb.createDb(storageFile);
+        const rc = this.init(dmdb);
+        if (rc !== DbResult.BE_SQLITE_DONE)
+          throw new IVaultError(rc, "SQLite error");
+        dmdb.saveChanges();
+      }
+      const storage = new NativeAppStorage(dmdb, fileName);
+      this._storages.set(fileName, storage);
+      return storage;
+    }
+  }
+}

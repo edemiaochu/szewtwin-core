@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="TestDomain" alias="td" version="1.0.0" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1">
+    <DMSchemaReference name="BisCore" version="01.00" alias="bis"/>
+
+    <DMEntityClass typeName="IMixin" modifier="Abstract">
+        <DMCustomAttributes>
+            <IsMixin xmlns="CoreCustomAttributes.1.0">
+                <AppliesToEntityClass>TestDomainClass</AppliesToEntityClass>
+            </IsMixin>
+        </DMCustomAttributes>
+        <DMProperty propertyName="TestMixinProperty" typeName="int" description="A property that is inherited by any class which applies the mixin."/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="TestDomainClass" description="A test domain class that has a base and mixin applied to it.">
+        <BaseClass>bis:DefinitionElement</BaseClass>
+        <BaseClass>IMixin</BaseClass>
+        <DMProperty propertyName="TestProperty" typeName="int"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="Equipment">
+        <BaseClass>bis:PhysicalElement</BaseClass>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="EquipmentType">
+        <BaseClass>bis:PhysicalType</BaseClass>
+        <DMProperty propertyName="ManufacturerName" typeName="string"/>
+        <DMProperty propertyName="ProductLineName" typeName="string"/>
+        <DMProperty propertyName="Rating" typeName="string"/>
+    </DMEntityClass>
+
+</DMSchema>

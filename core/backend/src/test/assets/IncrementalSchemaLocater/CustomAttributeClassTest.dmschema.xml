@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="CustomAttributeClassTest" alias="cat" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="BisCore" version="01.00.01" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+
+  <DMCustomAttributeClass typeName="CustomAttributeModifierNone" modifier="None" appliesTo="Any" displayLabel="TestLabel" description="Test Description">
+    <DMCustomAttributes>
+      <HiddenClass xmlns="CoreCustomAttributes.01.00.03">
+        <Show>false</Show>
+      </HiddenClass>
+      <TestCustomAttribute xmlns="CustomAttributeClassTest.01.00.00"/>
+    </DMCustomAttributes>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMCustomAttributeClass>
+
+  <DMCustomAttributeClass typeName="CustomAttributeModifierSealed" modifier="Sealed"  appliesTo="AnyClass" displayLabel="TestLabel" description="Test Description">
+    <DMCustomAttributes>
+      <HiddenClass xmlns="CoreCustomAttributes.01.00.03">
+        <Show>false</Show>
+      </HiddenClass>
+      <TestCustomAttribute xmlns="CustomAttributeClassTest.01.00.00"/>
+    </DMCustomAttributes>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMCustomAttributeClass>
+
+  <DMCustomAttributeClass typeName="CustomAttributeModifierAbstract" modifier="Abstract" appliesTo="Schema" displayLabel="TestLabel" description="Test Description">
+    <DMCustomAttributes>
+      <HiddenClass xmlns="CoreCustomAttributes.01.00.03">
+        <Show>false</Show>
+      </HiddenClass>
+      <TestCustomAttribute xmlns="CustomAttributeClassTest.01.00.00"/>
+    </DMCustomAttributes>
+    <DMProperty propertyName="StringProperty" typeName="string" displayLabel="String" description="String Property"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMCustomAttributeClass>
+
+  <DMCustomAttributeClass typeName="TestCustomAttribute" appliesTo="CustomAttributeClass" modifier="Sealed"/>
+</DMSchema>

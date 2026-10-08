@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<DMSchema schemaName="ExtensiveTestScenario" alias="source" version="01.00.00"
+    xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.1" description="Extensive schema items collection for testing various schema processing">
+
+    <DMSchemaReference name="BisCore" version="01.00.04" alias="bis"/>
+
+    <DMEntityClass typeName="SourcePhysicalElement" modifier="Sealed" description="For testing transformation SourcePhysicalElement --> TargetPhysicalElement">
+        <BaseClass>bis:PhysicalElement</BaseClass>
+        <DMProperty propertyName="CommonString" typeName="string" description="A string property that exists on both SourcePhysicalElement and TargetPhysicalElement"/>
+        <DMProperty propertyName="SourceString" typeName="string" description="A string property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="CommonDouble" typeName="double" description="A double property that exists in both schemas"/>
+        <DMProperty propertyName="SourceDouble" typeName="double" description="A double property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="CommonBinary" typeName="binary" description="A binary property that exists in both schemas"/>
+        <DMProperty propertyName="SourceBinary" typeName="binary" description="A binary property that only exists in the source schema but should be remapped"/>
+        <DMNavigationProperty propertyName="SourceNavigation" relationshipName="SourcePhysicalElementUsesSourceDefinition" direction="Forward" description="A NavigationProperty that only exists in the source schema but should be remapped"/>
+        <DMNavigationProperty propertyName="CommonNavigation" relationshipName="SourcePhysicalElementUsesCommonDefinition" direction="Forward" description="A NavigationProperty that exists in both schemas"/>
+        <DMProperty propertyName="ExtraString" typeName="string" description="A string property that only exists in the source schema and should be dropped"/>
+    </DMEntityClass>
+
+    <DMRelationshipClass typeName="SourcePhysicalElementUsesSourceDefinition" strength="referencing" modifier="None">
+        <Source multiplicity="(0..*)" roleLabel="uses" polymorphic="true">
+            <Class class="SourcePhysicalElement" />
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is used by" polymorphic="true">
+            <Class class="bis:DefinitionElement"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="SourcePhysicalElementUsesCommonDefinition" strength="referencing" modifier="Sealed">
+        <Source multiplicity="(0..*)" roleLabel="uses" polymorphic="true">
+            <Class class="SourcePhysicalElement" />
+        </Source>
+        <Target multiplicity="(0..1)" roleLabel="is used by" polymorphic="true">
+            <Class class="bis:DefinitionElement"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="SourceRelToExclude" strength="referencing" modifier="None" description="For testing relationship exclusion by class.">
+        <BaseClass>bis:ElementRefersToElements</BaseClass>
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="true">
+            <Class class="bis:Element"/>
+        </Source>
+        <Target multiplicity="(0..*)" roleLabel="is referenced by" polymorphic="true">
+            <Class class="bis:Element"/>
+        </Target>
+    </DMRelationshipClass>
+
+    <DMRelationshipClass typeName="SourceRelWithProps" strength="referencing" modifier="None" description="For testing relationship property remapping.">
+        <BaseClass>bis:ElementRefersToElements</BaseClass>
+        <Source multiplicity="(0..*)" roleLabel="refers to" polymorphic="true">
+            <Class class="bis:Element"/>
+        </Source>
+        <Target multiplicity="(0..*)" roleLabel="is referenced by" polymorphic="true">
+            <Class class="bis:Element"/>
+        </Target>
+        <DMProperty propertyName="SourceString" typeName="string" description="A string property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceDouble" typeName="double" description="A double property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceLong" typeName="long" extendedTypeName="Id" description="A long property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceGuid" typeName="binary" extendedTypeName="BeGuid" description="A GUID property that only exists in the source schema but should be remapped"/>
+    </DMRelationshipClass>
+
+    <DMEntityClass typeName="SourceUniqueAspect" description="For testing transformation of SourceUniqueAspect --> TargetUniqueAspect.">
+        <BaseClass>bis:ElementUniqueAspect</BaseClass>
+        <DMProperty propertyName="CommonDouble" typeName="double" description="A double property that exists on both SourceUniqueAspect and TargetUniqueAspect"/>
+        <DMProperty propertyName="CommonString" typeName="string" description="A string property that exists on both SourceUniqueAspect and TargetUniqueAspect"/>
+        <DMProperty propertyName="CommonLong" typeName="long" extendedTypeName="Id" description="A long property that exists on both SourceUniqueAspect and TargetUniqueAspect"/>
+        <DMProperty propertyName="CommonBinary" typeName="binary" description="A binary property that exists on both SourceUniqueAspect and TargetUniqueAspect"/>
+        <DMProperty propertyName="SourceDouble" typeName="double" description="A double property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceString" typeName="string" description="A string property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceLong" typeName="long" extendedTypeName="Id" description="A long property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceGuid" typeName="binary" extendedTypeName="BeGuid" description="A GUID property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="ExtraString" typeName="string" description="A string property that only exists in the source schema and should be filtered out when transforming to the target schema"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="SourceMultiAspect" description="For testing transformation of SourceMultiAspect --> TargetMultiAspect.">
+        <BaseClass>bis:ElementMultiAspect</BaseClass>
+        <DMProperty propertyName="CommonDouble" typeName="double" description="A double property that exists on both SourceMultiAspect and TargetMultiAspect"/>
+        <DMProperty propertyName="CommonString" typeName="string" description="A string property that exists on both SourceMultiAspect and TargetMultiAspect"/>
+        <DMProperty propertyName="CommonLong" typeName="long" extendedTypeName="Id" description="A long property that exists on both SourceMultiAspect and TargetMultiAspect"/>
+        <DMProperty propertyName="CommonBinary" typeName="binary" description="A binary property that exists on both SourceMultiAspect and TargetMultiAspect"/>
+        <DMProperty propertyName="SourceDouble" typeName="double" description="A double property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceString" typeName="string" description="A string property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceLong" typeName="long" extendedTypeName="Id" description="A long property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="SourceGuid" typeName="binary" extendedTypeName="BeGuid" description="A GUID property that only exists in the source schema but should be remapped"/>
+        <DMProperty propertyName="ExtraString" typeName="string" description="A string property that only exists in the source schema and should be filtered out when transforming to the target schema"/>
+    </DMEntityClass>
+
+    <DMEntityClass typeName="AdditionalMultiAspect" description="For testing of exporting multiple multi aspect classes at once">
+        <BaseClass>bis:ElementMultiAspect</BaseClass>
+        <DMProperty propertyName="Value" typeName="string" />
+    </DMEntityClass>
+
+    <DMEntityClass typeName="SourceUniqueAspectToExclude" description="For testing ElementUniqueAspect exclusion by class.">
+        <BaseClass>bis:ElementUniqueAspect</BaseClass>
+        <DMProperty propertyName="Description" typeName="string" />
+    </DMEntityClass>
+
+    <DMEntityClass typeName="SourceMultiAspectToExclude" description="For testing ElementMultiAspect exclusion by class.">
+        <BaseClass>bis:ElementMultiAspect</BaseClass>
+        <DMProperty propertyName="Description" typeName="string" />
+    </DMEntityClass>
+
+    <DMEntityClass typeName="SourceInformationRecord" modifier="Sealed">
+        <BaseClass>bis:InformationRecordElement</BaseClass>
+        <DMProperty propertyName="CommonString" typeName="string" description="A string property that exists on both SourceInformationRecord and TargetInformationRecord"/>
+        <DMProperty propertyName="SourceString" typeName="string" description="A string property that only exists in the source schema but should be remapped"/>
+    </DMEntityClass>
+
+</DMSchema>

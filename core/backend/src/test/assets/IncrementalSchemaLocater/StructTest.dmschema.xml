@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==================================================================================
+|  * Copyright (c) Szewec Systems, Incorporated. All rights reserved.
+|  * See LICENSE.md in the project root for license terms and full copyright notice.
+======================================================================================= -->
+<DMSchema schemaName="StructTest" alias="st" version="01.00.00" xmlns="http://www.szewec.com/schemas/Szewec.DMXML.3.2">
+  <DMSchemaReference name="BisCore" version="01.00.01" alias="bis"/>
+  <DMSchemaReference name="CoreCustomAttributes" version="01.00.03" alias="CoreCA"/>
+
+  <DMStructClass typeName="BaseStruct" modifier="Abstract" displayLabel="TestLabel" description="TestDescription">
+    <DMProperty propertyName="StringProperty" typeName="string"/>
+    <DMCustomAttributes>
+      <HiddenClass xmlns="CoreCustomAttributes.01.00.03">
+        <Show>false</Show>
+      </HiddenClass>
+      <TestCustomAttribute xmlns="StructTest.01.00.00"/>
+    </DMCustomAttributes>
+  </DMStructClass>
+
+  <DMStructClass typeName="StructModifierNone" modifier="None" displayLabel="TestLabel" description="TestDescription">
+    <BaseClass>BaseStruct</BaseClass>
+    <DMProperty propertyName="IntProperty" typeName="int"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMStructClass>
+
+  <DMStructClass typeName="StructModifierAbstract" modifier="Abstract">
+    <BaseClass>BaseStruct</BaseClass>
+    <DMProperty propertyName="DoubleProperty" typeName="double"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMStructClass>
+
+  <DMStructClass typeName="StructModifierSealed" modifier="Sealed" displayLabel="TestLabel" description="TestDescription">
+    <BaseClass>BaseStruct</BaseClass>
+    <DMProperty propertyName="LongProperty" typeName="long"/>
+    <DMProperty propertyName="BooleanProperty" typeName="boolean" displayLabel="Boolean" description="Boolean Property"/>
+  </DMStructClass>
+
+  <DMCustomAttributeClass typeName="TestCustomAttribute" appliesTo="StructClass" modifier="Sealed"/>
+</DMSchema>
